@@ -1,0 +1,31 @@
+﻿@page
+@model IndexModel
+@{ ViewData["Title"] = "Dashboard"; }
+
+<h2 class="mb-4">Dashboard</h2>
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card card-stat p-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="icon"><i class="bi bi-building"></i></div>
+                <div><div class="text-muted small">Departments</div><h3 class="mb-0">@Model.DepartmentCount</h3></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-stat p-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="icon"><i class="bi bi-people"></i></div>
+                <div><div class="text-muted small">Employees</div><h3 class="mb-0">@Model.EmployeeCount</h3></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-stat p-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="icon"><i class="bi bi-list-check"></i></div>
+                <div><div class="text-muted small">Active Criteria</div><h3 class="mb-0">@Model.CriteriaCount</h3></div>
+            </div>
+        </div>
+    </div>
+</div>
