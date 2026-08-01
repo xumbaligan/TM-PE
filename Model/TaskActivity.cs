@@ -19,6 +19,10 @@ namespace TM_PE.Model
 
         public DateTime DateCreated { get; set; } = DateTime.Now;
 
+        public int? AssignedEmployeeID { get; set; }
+        [ForeignKey(nameof(AssignedEmployeeID))]
+        public Employee? AssignedEmployee { get; set; }
+
         public int OfficeTaskID { get; set; }
 
         [ForeignKey(nameof(OfficeTaskID))]
