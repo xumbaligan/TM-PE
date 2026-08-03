@@ -1,0 +1,166 @@
+﻿@page "{id:int}"
+@model TM_PE.Pages.Manager.JobTickets.DetailsModel
+
+@{
+    ViewData["Title"] = "Job Ticket Details";
+    var badgeClass = Model.JobTicket.Status switch
+    {
+        "Completed" => "bg-success-subtle text-success",
+        "In Progress" => "bg-info-subtle text-info",
+        "Cancelled" => "bg-danger-subtle text-danger",
+        _ => "bg-secondary-subtle text-secondary"
+    };
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="fw-bold mb-0">@Model.JobTicket.JobName</h3>
+        <div class="text-muted">Ticket #@Model.JobTicket.TicketNumber</div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body p-4">
+
+        <div class="row g-3 mb-4">
+            <div class="col-sm-3">
+                <div class="text-muted small">Date Created</div>
+                <div>@Model.JobTicket.DateCreated.ToString("M/d/yyyy")</div>
+            </div>
+            <div class="col-sm-3">
+                <div class="text-muted small">Installation Date</div>
+                <div>@Model.JobTicket.InstallationDate.ToString("M/d/yyyy")</div>
+            </div>
+            <div class="col-sm-3">
+                <div class="text-muted small">Fiber Plan</div>
+                <div>₱@Model.JobTicket.FiberPlan / month</div>
+            </div>
+            <div class="col-sm-3">
+                <div class="text-muted small">Status</div>
+                <span class="badge rounded-pill @badgeClass px-3 py-2">@Model.JobTicket.Status</span>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-sm-4">
+                <div class="text-muted small">Client</div>
+                <div>@Model.JobTicket.ClientFullName</div>
+            </div>
+            <div class="col-sm-4">
+                <div class="text-muted small">Primary Number</div>
+                <div>@Model.JobTicket.PrimaryNumber</div>
+            </div>
+            <div class="col-sm-4">
+                <div class="text-muted small">Secondary Number</div>
+                <div>@(string.IsNullOrWhiteSpace(Model.JobTicket.SecondaryNumber) ? "—" : Model.JobTicket.SecondaryNumber)</div>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <div class="text-muted small">Location</div>
+            <div class="mb-2">@Model.JobTicket.LocationAddress</div>
+            @if (Model.JobTicket.Latitude != 0 && Model.JobTicket.Longitude != 0)
+            {
+                <div id="detailMap" style="height:260px; border-radius:8px;"></div>
+            }
+        </div>
+
+        <div>
+            <div class="text-muted small mb-2">Assigned Field Technicians</div>
+            @if (Model.JobTicket.Assignments != null && Model.JobTicket.Assignments.Any())
+            {
+                <div class="d-flex flex-wrap gap-2">
+                    @foreach (var a in Model.JobTicket.Assignments.Where(a => a.Employee != null))
+                    {
+                        <span class="badge rounded-pill @(a.IsLeader ? "bg-primary" : "bg-light text-dark border") px-3 py-2">
+                            @a.Employee!.FullName @(a.IsLeader ? "(Leader)" : "")
+                        </span>
+                    }
+                </div>
+            }
+            else
+            {
+                <span class="text-muted">No assignees</span>
+            }
+        </div>
+
+    </div>
+</div>
+
+<!-- Submitted Photos -->
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h5 class="fw-semibold mb-1">📷 Submitted Photos</h5>
+        <p class="text-muted small mb-3">Pictures uploaded by the job leader as proof of work.</p>
+
+        @if (Model.JobTicket.Submissions != null && Model.JobTicket.Submissions.Any())
+        {
+            <div class="row g-3">
+                @foreach (var sub in Model.JobTicket.Submissions)
+                {
+                    var ext = System.IO.Path.GetExtension(sub.FileName);
+                    var isImage = TM_PE.Pages.Manager.JobTickets.DetailsModel.ImageExtensions.Contains(ext);
+                    <div class="col-md-3 col-sm-4 col-6">
+                        <div class="card h-100">
+                            @if (isImage)
+                            {
+                                <img src="~/@sub.FilePath" class="card-img-top" style="height:150px; object-fit:cover;" alt="@sub.FileName" />
+                            }
+                            else
+                            {
+                                <div class="d-flex align-items-center justify-content-center bg-light" style="height:150px;">
+                                    <i class="bi bi-file-earmark-text" style="font-size:2.5rem;"></i>
+                                </div>
+                            }
+                            <div class="card-body p-2">
+                                <div class="small text-truncate" title="@sub.FileName">@sub.FileName</div>
+                                <div class="text-muted small">By @(sub.Employee?.FullName ?? "—")</div>
+                                <div class="text-muted small">@sub.DateSubmitted.ToString("M/d/yyyy h:mm tt")</div>
+                                <a asp-page-handler="Download" asp-route-submissionId="@sub.JobTicketSubmissionID" class="btn btn-sm btn-outline-secondary w-100 mt-1">
+                                    <i class="bi bi-download"></i> Download
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="text-muted">No photos submitted yet.</div>
+        }
+    </div>
+</div>
+
+<div class="d-flex justify-content-end gap-2 mb-4 mt-4">
+    @if (Model.JobTicket.Status != "Completed" && Model.JobTicket.Status != "Cancelled")
+    {
+        <form method="post" asp-page-handler="Close" asp-route-id="@Model.JobTicket.JobTicketID"
+              onsubmit="return confirm('Close this job ticket? This marks it as Completed.');">
+            <button type="submit" class="btn btn-success btn-sm">
+                <i class="bi bi-check2-circle"></i> Close Ticket
+            </button>
+        </form>
+    }
+    <a asp-page="./Index" class="btn btn-outline-secondary btn-sm">Back</a>
+</div>
+
+@section Scripts {
+    @if (Model.JobTicket.Latitude != 0 && Model.JobTicket.Longitude != 0)
+    {
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script>
+            (function () {
+                const lat = @Model.JobTicket.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                const lng = @Model.JobTicket.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                const map = L.map('detailMap', { dragging: false, scrollWheelZoom: false }).setView([lat, lng], 16);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+                L.marker([lat, lng]).addTo(map);
+            })();
+        </script>
+    }
+}

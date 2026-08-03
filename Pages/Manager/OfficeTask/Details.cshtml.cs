@@ -182,6 +182,13 @@ namespace TM_PE.Pages.Manager.OfficeTask
                     continue;
                 }
 
+                // Once an activity has been Approved, it is locked: no further status or
+                // feedback changes are allowed, even if the posted form tries to change it.
+                if (activity.Status == "Approved")
+                {
+                    continue;
+                }
+
                 var newStatus = i < statuses.Count ? statuses[i] : null;
                 var newFeedback = i < feedbacks.Count ? feedbacks[i]?.Trim() ?? string.Empty : activity.FeedBack;
 
@@ -211,6 +218,12 @@ namespace TM_PE.Pages.Manager.OfficeTask
             {
                 var activity = await _context.TaskActivities.FindAsync(activityIds[i]);
                 if (activity == null)
+                {
+                    continue;
+                }
+
+                // Approved activities are locked and can never be changed again.
+                if (activity.Status == "Approved")
                 {
                     continue;
                 }

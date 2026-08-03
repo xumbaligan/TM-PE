@@ -137,6 +137,11 @@
                         <span class="text-muted small" id="noEmployeesMsg">No employees added yet.</span>
                     </div>
 
+                    <div class="text-muted small mt-2" id="multiAssigneeHint" style="display:none;">
+                        More than one employee is assigned to this task. Activities are no longer assigned to a
+                        specific person &mdash; any assigned employee can pick up an activity.
+                    </div>
+
                 </div>
             </div>
 
@@ -148,26 +153,14 @@
                         📋 Task Activities <span class="text-danger">*</span>
                     </h5>
 
-                    <div class="text-muted small mb-2" id="assignHint" style="display:none;">
-                        More than one employee is assigned, so pick who is responsible for each activity.
-                    </div>
-
                     <div class="row g-2">
 
-                        <div class="col-md-6">
+                        <div class="col-md-10">
 
                             <input type="text"
                                    id="activityInput"
                                    class="form-control"
                                    placeholder="Enter an activity name" />
-
-                        </div>
-
-                        <div class="col-md-4">
-
-                            <select id="activityAssignee" class="form-select" style="display:none;">
-                                <option value="">Assign to...</option>
-                            </select>
 
                         </div>
 
@@ -224,10 +217,9 @@
             const addEmployeeBtn = document.getElementById('addEmployeeBtn');
             const selectedEmployeesDiv = document.getElementById('selectedEmployees');
             const noEmployeesMsg = document.getElementById('noEmployeesMsg');
+            const multiAssigneeHint = document.getElementById('multiAssigneeHint');
 
             const activityInput = document.getElementById('activityInput');
-            const activityAssignee = document.getElementById('activityAssignee');
-            const assignHint = document.getElementById('assignHint');
             const addActivityBtn = document.getElementById('addActivityBtn');
             const activitiesList = document.getElementById('activitiesList');
             const noActivitiesMsg = document.getElementById('noActivitiesMsg');
@@ -235,29 +227,8 @@
             // id -> name, preserves insertion order
             const addedEmployees = new Map();
 
-            function refreshAssigneeDropdown() {
-                const previousValue = activityAssignee.value;
-
-                activityAssignee.innerHTML = '<option value="">Assign to...</option>';
-                addedEmployees.forEach((name, id) => {
-                    const opt = document.createElement('option');
-                    opt.value = id;
-                    opt.textContent = name;
-                    activityAssignee.appendChild(opt);
-                });
-
-                if (addedEmployees.has(previousValue)) {
-                    activityAssignee.value = previousValue;
-                }
-
-                // Only ask the manager to pick an assignee when there's a real choice to make.
-                const needsChoice = addedEmployees.size > 1;
-                activityAssignee.style.display = needsChoice ? '' : 'none';
-                assignHint.style.display = needsChoice ? '' : 'none';
-            }
-
-            function employeeHasAssignedActivities(id) {
-                return activitiesList.querySelector(`[data-assignee-id="${id}"]`) !== null;
+            function refreshMultiAssigneeHint() {
+                multiAssigneeHint.style.display = addedEmployees.size > 1 ? '' : 'none';
             }
 
             addEmployeeBtn.addEventListener('click', function () {
@@ -285,15 +256,10 @@
                 selectedEmployeesDiv.appendChild(hiddenInput);
 
                 employeeSelect.value = '';
-                refreshAssigneeDropdown();
+                refreshMultiAssigneeHint();
             });
 
             window.removeEmployee = function (id) {
-                if (employeeHasAssignedActivities(id)) {
-                    alert('This employee already has an activity assigned to them. Remove or reassign that activity first.');
-                    return;
-                }
-
                 addedEmployees.delete(id);
                 selectedEmployeesDiv
                     .querySelectorAll(`[data-employee-id="${id}"]`)
@@ -303,7 +269,7 @@
                     noEmployeesMsg.style.display = '';
                 }
 
-                refreshAssigneeDropdown();
+                refreshMultiAssigneeHint();
             };
 
             let activityCounter = 0;
@@ -317,20 +283,6 @@
                     return;
                 }
 
-                let assigneeId, assigneeName;
-
-                if (addedEmployees.size === 1) {
-                    // Only one employee on the task, so every activity goes to them automatically.
-                    [assigneeId, assigneeName] = [...addedEmployees.entries()][0];
-                } else {
-                    assigneeId = activityAssignee.value;
-                    if (!assigneeId) {
-                        alert('Please choose who this activity is assigned to.');
-                        return;
-                    }
-                    assigneeName = addedEmployees.get(assigneeId);
-                }
-
                 activityCounter++;
                 const activityId = `activity-${activityCounter}`;
                 noActivitiesMsg.style.display = 'none';
@@ -338,17 +290,14 @@
                 const li = document.createElement('li');
                 li.className = 'list-group-item d-flex justify-content-between align-items-center';
                 li.dataset.activityId = activityId;
-                li.dataset.assigneeId = assigneeId;
                 li.innerHTML = `
-                    <span>${text} <span class="badge bg-light text-dark border ms-2">${assigneeName}</span></span>
+                    <span>${text}</span>
                     <span class="text-danger" style="cursor:pointer;" onclick="removeActivity('${activityId}')">&times;</span>
                     <input type="hidden" name="Activities" value="${text.replace(/"/g, '&quot;')}" />
-                    <input type="hidden" name="ActivityAssigneeIds" value="${assigneeId}" />
                 `;
 
                 activitiesList.appendChild(li);
                 activityInput.value = '';
-                activityAssignee.value = '';
                 activityInput.focus();
             });
 
@@ -367,18 +316,6 @@
                     noActivitiesMsg.style.display = '';
                 }
             };
-
-            // Block submit if any assigned employee has no activity of their own.
-            document.getElementById('taskForm').addEventListener('submit', function (e) {
-                const employeesWithoutActivity = [...addedEmployees.keys()]
-                    .filter(id => !employeeHasAssignedActivities(id))
-                    .map(id => addedEmployees.get(id));
-
-                if (employeesWithoutActivity.length > 0) {
-                    e.preventDefault();
-                    alert('Every assigned employee needs at least one activity. Missing: ' + employeesWithoutActivity.join(', '));
-                }
-            });
         })();
     </script>
 }

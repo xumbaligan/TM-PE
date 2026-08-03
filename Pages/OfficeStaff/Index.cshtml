@@ -50,8 +50,12 @@
                             _ => "bg-secondary-subtle text-secondary"
                         };
 
-                        var myActivities = task.Activities.Where(a => a.AssignedEmployeeID == Model.CurrentEmployee.EmployeeId).ToList();
+                        var soleAssignee = task.Assignments.Count <= 1;
+                        var myActivities = soleAssignee
+                        ? task.Activities.ToList()
+                        : task.Activities.Where(a => a.AssignedEmployeeID == Model.CurrentEmployee.EmployeeId).ToList();
                         var myApproved = myActivities.Count(a => a.Status == "Approved");
+                        var openActivities = soleAssignee ? 0 : task.Activities.Count(a => a.AssignedEmployeeID == null);
 
                         <tr>
                             <td class="ps-3">
@@ -72,10 +76,18 @@
                                 @if (myActivities.Any())
                                 {
                                     <span>@myApproved/@myActivities.Count approved</span>
+                                    @if (!soleAssignee && openActivities > 0)
+                                    {
+                                        <div class="text-muted small">@openActivities open to claim</div>
+                                    }
+                                }
+                                else if (!soleAssignee && openActivities > 0)
+                                {
+                                    <span class="text-muted small">@openActivities open — none claimed yet</span>
                                 }
                                 else
                                 {
-                                    <span class="text-muted small">None assigned to you</span>
+                                    <span class="text-muted small">None yet</span>
                                 }
                             </td>
                             <td class="text-end pe-3">

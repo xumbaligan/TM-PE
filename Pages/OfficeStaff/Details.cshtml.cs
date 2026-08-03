@@ -86,9 +86,13 @@ namespace TM_PE.Pages.OfficeStaff
         // ---------------------------------------------------------------
         // SUBMISSIONS (file upload / download)
         // ---------------------------------------------------------------
-        // Employees can only upload to activities assigned to them. Submitting
-        // automatically flips the activity to "Submitted" (unless a manager has
-        // already Approved it); only a manager can set Approved/Rejected.
+        // Employees can only upload for activities they're allowed to work on:
+        //   - Tasks with a single assigned employee: that employee can always upload
+        //     (until the activity is Approved).
+        //   - Tasks with multiple assigned employees: activities are no longer pre-assigned.
+        //     Whoever uploads first "claims" the activity. After that, only the claiming
+        //     employee can upload again; everyone else can still see the file but not
+        //     replace it. Nobody can upload once the activity is Approved.
         public async Task<IActionResult> OnPostUploadSubmissionAsync(int activityId, int officeTaskId, IFormFile submissionFile)
         {
             var employeeId = HttpContext.Session.GetInt32("CurrentEmployeeId");
@@ -97,16 +101,44 @@ namespace TM_PE.Pages.OfficeStaff
                 return RedirectToPage("./Select");
             }
 
+            var task = await _context.OfficeTasks
+                .Include(t => t.Assignments)
+                .FirstOrDefaultAsync(t => t.OfficeTaskID == officeTaskId);
+
+            if (task == null)
+            {
+                return NotFound();
+            }
+
+            bool isAssignedToTask = task.Assignments.Any(a => a.EmployeeID == employeeId.Value);
+            if (!isAssignedToTask)
+            {
+                ErrorMessage = "You are not assigned to that task.";
+                return RedirectToPage(new { id = officeTaskId });
+            }
+
             var activity = await _context.TaskActivities.FindAsync(activityId);
             if (activity == null || activity.OfficeTaskID != officeTaskId)
             {
                 return NotFound();
             }
 
-            if (activity.AssignedEmployeeID != employeeId.Value)
+            if (activity.Status == "Approved")
             {
-                ErrorMessage = "You can only upload a file for activities assigned to you.";
+                ErrorMessage = "This activity has already been approved and can no longer be changed.";
                 return RedirectToPage(new { id = officeTaskId });
+            }
+
+            bool soleAssignee = task.Assignments.Count == 1;
+
+            if (!soleAssignee)
+            {
+                // Someone else already claimed this activity by uploading first.
+                if (activity.AssignedEmployeeID.HasValue && activity.AssignedEmployeeID.Value != employeeId.Value)
+                {
+                    ErrorMessage = "Another assigned employee has already uploaded a file for this activity. You can still view it, but you can't upload your own.";
+                    return RedirectToPage(new { id = officeTaskId });
+                }
             }
 
             if (submissionFile == null || submissionFile.Length == 0)
@@ -152,6 +184,10 @@ namespace TM_PE.Pages.OfficeStaff
                     Status = "Pending Review"
                 });
             }
+
+            // The uploader claims the activity (a no-op for tasks with only one assignee,
+            // who already owns every activity).
+            activity.AssignedEmployeeID = employeeId.Value;
 
             // A fresh upload puts the activity back into review, unless a manager already approved it.
             if (activity.Status != "Approved")

@@ -150,12 +150,36 @@ namespace TM_PE.Pages.Manager.OfficeTask
             foreach (var a in activitiesToRemove)
                 _context.TaskActivities.Remove(a);
 
+            // Activities are no longer manually assigned to a specific employee.
+            // - Exactly one employee left on the task -> every activity (existing and new) is implicitly theirs.
+            // - More than one employee -> activities are unclaimed until someone uploads a submission for them.
+            int? autoAssigneeId = SelectedEmployeeIds.Count == 1 ? SelectedEmployeeIds[0] : (int?)null;
+
+            foreach (var activity in task.Activities.Where(a => KeptActivityIds.Contains(a.ActivityID)))
+            {
+                // Don't touch activities someone has already claimed by uploading a submission,
+                // and never touch an already-Approved activity.
+                if (activity.Status == "Approved")
+                    continue;
+
+                if (SelectedEmployeeIds.Count == 1)
+                {
+                    activity.AssignedEmployeeID = autoAssigneeId;
+                }
+                else if (activity.AssignedEmployeeID.HasValue && !SelectedEmployeeIds.Contains(activity.AssignedEmployeeID.Value))
+                {
+                    // The employee who had claimed this activity was removed from the task; reopen it.
+                    activity.AssignedEmployeeID = null;
+                }
+            }
+
             foreach (var activityName in NewActivities)
             {
                 _context.TaskActivities.Add(new TaskActivity
                 {
                     OfficeTaskID = task.OfficeTaskID,
                     ActivityName = activityName,
+                    AssignedEmployeeID = autoAssigneeId,
                     Status = "Pending",
                     DateCreated = DateTime.Now
                 });

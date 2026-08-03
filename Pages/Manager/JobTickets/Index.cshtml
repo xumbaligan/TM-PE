@@ -1,0 +1,170 @@
+﻿@page
+@model TM_PE.Pages.Manager.JobTickets.IndexModel
+@{
+    ViewData["Title"] = "Job Tickets";
+}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="fw-bold mb-0">Job Ticket Management</h3>
+    <a asp-page="Create" class="btn btn-primary">
+        + Create New
+    </a>
+</div>
+
+<div class="table-responsive card">
+    <table class="table align-middle table-hover mb-0">
+        <thead>
+            <tr class="text-muted small">
+                <th>Task Number</th>
+                <th>Job Name</th>
+                <th>Client</th>
+                <th>Leader</th>
+                <th>Status</th>
+                <th>Due Date</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Model.JobTicket.Any())
+            {
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">No job tickets yet.</td>
+                </tr>
+            }
+            @foreach (var item in Model.JobTicket)
+            {
+                var leader = item.Assignments?.FirstOrDefault(a => a.IsLeader)?.Employee;
+                <tr>
+                    <td class="text-muted">@item.TicketNumber</td>
+                    <td class="fw-semibold">@item.JobName</td>
+                    <td>@item.ClientFullName</td>
+                    <td>@(leader != null ? leader.FullName : "—")</td>
+                    <td>
+                        @{
+                            var badgeClass = item.Status switch
+                            {
+                                "Completed" => "bg-success-subtle text-success",
+                                "In Progress" => "bg-info-subtle text-info",
+                                "Cancelled" => "bg-danger-subtle text-danger",
+                                _ => "bg-secondary-subtle text-secondary"
+                            };
+                        }
+                        <span class="badge rounded-pill @badgeClass px-3 py-2">
+                            @item.Status
+                        </span>
+                    </td>
+                    <td class="text-muted">@item.InstallationDate.ToString("M/d/yyyy")</td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-link text-secondary p-1" title="View"
+                                data-bs-toggle="modal" data-bs-target="#viewModal-@item.JobTicketID">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <a asp-page="./Edit" asp-route-id="@item.JobTicketID"
+                           class="btn btn-sm btn-link text-secondary p-1" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@* ===================== VIEW MODALS ===================== *@
+@foreach (var item in Model.JobTicket)
+{
+    var modalBadgeClass = item.Status switch
+    {
+        "Completed" => "bg-success-subtle text-success",
+        "In Progress" => "bg-info-subtle text-info",
+        "Cancelled" => "bg-danger-subtle text-danger",
+        _ => "bg-secondary-subtle text-secondary"
+    };
+
+    <div class="modal fade" id="viewModal-@item.JobTicketID" tabindex="-1"
+         aria-labelledby="viewModalLabel-@item.JobTicketID" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="viewModalLabel-@item.JobTicketID">
+                            @item.JobName
+                        </h5>
+                        <div class="text-muted small">Ticket #@item.TicketNumber</div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Status</div>
+                            <span class="badge rounded-pill @modalBadgeClass px-3 py-2">
+                                @item.Status
+                            </span>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Date Created</div>
+                            <div>@item.DateCreated.ToString("M/d/yyyy")</div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Installation Date</div>
+                            <div>@item.InstallationDate.ToString("M/d/yyyy")</div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Client</div>
+                            <div>@item.ClientFullName</div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Primary Number</div>
+                            <div>@item.PrimaryNumber</div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Secondary Number</div>
+                            <div>@(string.IsNullOrWhiteSpace(item.SecondaryNumber) ? "—" : item.SecondaryNumber)</div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Fiber Plan</div>
+                            <div>₱@item.FiberPlan</div>
+                        </div>
+                        <div class="col-sm-8">
+                            <div class="text-muted small">Location</div>
+                            <div>@item.LocationAddress</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <div class="text-muted small mb-2">Assigned Field Technicians</div>
+                        @if (item.Assignments != null && item.Assignments.Any())
+                        {
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var a in item.Assignments.Where(a => a.Employee != null))
+                                {
+                                    <span class="badge rounded-pill @(a.IsLeader ? "bg-primary" : "bg-light text-dark border") px-3 py-2">
+                                        @a.Employee!.FullName @(a.IsLeader ? "(Leader)" : "")
+                                    </span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="text-muted">No assignees</span>
+                        }
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <a asp-page="./Details" asp-route-id="@item.JobTicketID" class="btn btn-outline-primary btn-sm">
+                        Open Full Details
+                    </a>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

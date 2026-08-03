@@ -27,10 +27,6 @@ namespace TM_PE.Pages.Manager.OfficeTask
         [BindProperty]
         public List<string> Activities { get; set; } = new();
 
-        // Parallel list to Activities: which employee each activity is assigned to
-        [BindProperty]
-        public List<int> ActivityAssigneeIds { get; set; } = new();
-
         // Used to populate the "Assign Employees" dropdown
         public List<Employee> EmployeeList { get; set; } = new();
 
@@ -56,7 +52,6 @@ namespace TM_PE.Pages.Manager.OfficeTask
 
             SelectedEmployeeIds ??= new();
             Activities ??= new();
-            ActivityAssigneeIds ??= new();
 
             // Due date can't be set in the past
             if (OfficeTask.DueDate.Date < DateTime.Now.Date)
@@ -67,13 +62,6 @@ namespace TM_PE.Pages.Manager.OfficeTask
 
             if (!Activities.Any())
                 ModelState.AddModelError(string.Empty, "Please add at least one activity.");
-
-            if (Activities.Count != ActivityAssigneeIds.Count)
-                ModelState.AddModelError(string.Empty, "Each activity must be assigned to an employee.");
-            else if (ActivityAssigneeIds.Any(id => !SelectedEmployeeIds.Contains(id)))
-                ModelState.AddModelError(string.Empty, "Activities can only be assigned to employees selected for this task.");
-            else if (SelectedEmployeeIds.Any(id => !ActivityAssigneeIds.Contains(id)))
-                ModelState.AddModelError(string.Empty, "Every assigned employee must have at least one activity.");
 
             // Only active Office Staff may be assigned, even if the request was tampered with.
             if (SelectedEmployeeIds.Any())
@@ -114,13 +102,19 @@ namespace TM_PE.Pages.Manager.OfficeTask
                 });
             }
 
-            for (int i = 0; i < Activities.Count; i++)
+            // Activities are no longer pre-assigned to a specific employee here.
+            // - If exactly one employee is on the task, every activity is implicitly theirs.
+            // - If more than one employee is on the task, activities start unclaimed;
+            //   whoever uploads a submission first claims that activity (see OfficeStaff Details page).
+            int? autoAssigneeId = SelectedEmployeeIds.Count == 1 ? SelectedEmployeeIds[0] : (int?)null;
+
+            foreach (var activityName in Activities)
             {
                 _context.TaskActivities.Add(new TaskActivity
                 {
                     OfficeTaskID = OfficeTask.OfficeTaskID,
-                    ActivityName = Activities[i],
-                    AssignedEmployeeID = ActivityAssigneeIds[i],
+                    ActivityName = activityName,
+                    AssignedEmployeeID = autoAssigneeId,
                     Status = "Pending",
                     DateCreated = DateTime.Now
                 });

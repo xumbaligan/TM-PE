@@ -18,6 +18,9 @@ namespace TM_PE.Data
         public DbSet<TaskActivity> TaskActivities => Set<TaskActivity>();
         public DbSet<TaskAssignment> TaskAssignments => Set<TaskAssignment>();
         public DbSet<ActivitySubmission> ActivitySubmissions => Set<ActivitySubmission>();
+        public DbSet<JobTicket> JobTickets => Set<JobTicket>();
+        public DbSet<JobTicketAssignment> JobTicketAssignments => Set<JobTicketAssignment>();
+        public DbSet<JobTicketSubmission> JobTicketSubmissions => Set<JobTicketSubmission>();
 
         protected override void OnModelCreating(ModelBuilder b)
         {

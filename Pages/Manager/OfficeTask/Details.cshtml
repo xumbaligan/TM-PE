@@ -114,13 +114,15 @@
                         <thead>
                             <tr class="text-muted small">
                                 <th>Activity</th>
-                                <th style="width:140px;">Assigned To</th>
                                 <th style="width:160px;">Status</th>
                                 <th style="width:160px;">Submission</th>
                                 <th style="width:220px;">Feedback</th>
                             </tr>
                         </thead>
                         <tbody>
+                            @{
+                                var assignedCount = Model.OfficeTask.Assignments?.Count ?? 0;
+                            }
                             @if (Model.OfficeTask.Activities != null && Model.OfficeTask.Activities.Any())
                             {
                                 @foreach (var activity in Model.OfficeTask.Activities)
@@ -133,29 +135,29 @@
                                         _ => "text-secondary border-secondary-subtle bg-secondary-subtle"
                                     };
                                     Model.LatestSubmissions.TryGetValue(activity.ActivityID, out var submission);
+                                    var isLocked = activity.Status == "Approved";
 
                                     <tr>
-                                        <td class="fw-semibold">@activity.ActivityName</td>
-
-                                        <td>
-                                            @if (activity.AssignedEmployee != null)
+                                        <td class="fw-semibold">
+                                            @activity.ActivityName
+                                            @if (isLocked)
                                             {
-                                                <span class="badge bg-light text-dark border">@activity.AssignedEmployee.FullName</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted small">Unassigned</span>
+                                                <i class="bi text-success ms-1" title="Approved activities can no longer be changed"></i>
                                             }
                                         </td>
-
                                         <td>
                                             <input type="hidden" name="activityIds" value="@activity.ActivityID" />
                                             <select name="statuses" class="form-select form-select-sm fw-semibold @selectClass activity-status-select"
-                                                    data-has-submission="@(submission != null ? "true" : "false")">
+                                                    data-has-submission="@(submission != null ? "true" : "false")"
+                                                    disabled="@(isLocked ? "disabled" : null)">
                                                 <option value="Pending" selected="@(activity.Status == "Pending")">Pending</option>
                                                 <option value="Approved" selected="@(activity.Status == "Approved")">Approved</option>
                                                 <option value="Rejected" selected="@(activity.Status == "Rejected")">Rejected</option>
                                             </select>
+                                            @if (isLocked)
+                                            {
+                                                <input type="hidden" name="statuses" value="Approved" />
+                                            }
                                         </td>
 
                                         <td>
@@ -176,7 +178,8 @@
 
                                         <td>
                                             <input type="text" name="feedbacks" value="@activity.FeedBack"
-                                                   class="form-control form-control-sm activity-feedback-input" placeholder="Add feedback..." maxlength="500" />
+                                                   class="form-control form-control-sm activity-feedback-input" placeholder="Add feedback..." maxlength="500"
+                                                   readonly="@(isLocked ? "readonly" : null)" />
                                         </td>
                                     </tr>
                                 }

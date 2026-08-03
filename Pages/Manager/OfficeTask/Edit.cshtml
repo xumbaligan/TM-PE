@@ -169,9 +169,8 @@
                                 <li class="list-group-item d-flex justify-content-between align-items-center">
                                     <span>
                                         @act.ActivityName
-                                        @if (act.AssignedEmployee != null)
-                                        {
-                                            <span class="badge bg-light text-dark border ms-1">@act.AssignedEmployee.FullName</span>
+                                        @{
+                                            var assignedCount = Model.OfficeTask.Assignments?.Count ?? 0;
                                         }
                                     </span>
                                     <span class="badge bg-secondary-subtle text-secondary">@act.Status</span>

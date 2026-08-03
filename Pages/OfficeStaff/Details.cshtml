@@ -10,6 +10,8 @@
         "Overdue" => "bg-danger-subtle text-danger",
         _ => "bg-secondary-subtle text-secondary"
     };
+    var assignedCount = Model.OfficeTask.Assignments?.Count ?? 0;
+    var soleAssignee = assignedCount <= 1;
 }
 
 <div class="container mt-4" style="max-width: 900px;">
@@ -95,6 +97,14 @@
                     <span class="text-muted small">No employees assigned.</span>
                 }
             </div>
+
+            @if (!soleAssignee)
+            {
+                <div class="text-muted small mt-2">
+                    Multiple employees are on this task. Activities aren't pre-assigned &mdash; anyone here can
+                    upload for an open activity, but once someone uploads a file for it, it's theirs to finish.
+                </div>
+            }
         </div>
     </div>
 
@@ -103,7 +113,14 @@
         <div class="card-body">
             <h6 class="fw-bold mb-3"><i class="bi bi-arrow-return-right me-1"></i> Activities &amp; Submissions</h6>
             <div class="text-muted small mb-3">
-                You can see everyone's progress here, but you can only upload a file for activities assigned to you.
+                @if (soleAssignee)
+                {
+                    <text>You can upload a file for any activity here until it's approved.</text>
+                }
+                else
+                {
+                    <text>You can see everyone's progress here. You can upload for any activity that's still open or already claimed by you &mdash; once a teammate uploads first, it's locked to them.</text>
+                }
             </div>
 
             <div class="table-responsive">
@@ -111,7 +128,6 @@
                     <thead>
                         <tr class="text-muted small">
                             <th>Activity</th>
-                            <th style="width:140px;">Assigned To</th>
                             <th style="width:130px;">Status</th>
                             <th style="width:200px;">Submission</th>
                             <th style="width:220px;">Feedback</th>
@@ -130,25 +146,13 @@
                                     _ => "bg-secondary-subtle text-secondary"
                                 };
                                 Model.LatestSubmissions.TryGetValue(activity.ActivityID, out var submission);
+
                                 var isMine = activity.AssignedEmployeeID == Model.CurrentEmployee.EmployeeId;
-                                var canUpload = isMine && activity.Status != "Approved";
+                                var isClaimedByOther = !soleAssignee && activity.AssignedEmployeeID.HasValue && !isMine;
+                                var canUpload = activity.Status != "Approved" && (soleAssignee || activity.AssignedEmployeeID == null || isMine);
 
                                 <tr>
                                     <td class="fw-semibold">@activity.ActivityName</td>
-
-                                    <td>
-                                        @if (activity.AssignedEmployee != null)
-                                        {
-                                            <span class="badge @(isMine ? "bg-primary" : "bg-light text-dark border")">
-                                                @(isMine ? "You" : activity.AssignedEmployee.FullName)
-                                            </span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted small">Unassigned</span>
-                                        }
-                                    </td>
-
                                     <td>
                                         <span class="badge @statusBadgeClass">@activity.Status</span>
                                     </td>
@@ -178,6 +182,11 @@
                                                     </label>
                                                 </form>
                                             }
+                                            else if (isClaimedByOther)
+                                            {
+                                                <span class="text-muted small" title="Already claimed by another assignee">
+                                                </span>
+                                            }
                                         </div>
                                     </td>
 
@@ -198,7 +207,8 @@
             </div>
 
             <div class="text-muted small mt-2">
-                Status changes to Submitted automatically when you upload a file. Only a manager can mark an activity Approved or Rejected.
+                Status changes to Submitted automatically when a file is uploaded. Only a manager can mark an
+                activity Approved or Rejected, and once approved it can no longer be changed.
             </div>
         </div>
     </div>
