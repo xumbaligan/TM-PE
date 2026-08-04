@@ -1,0 +1,252 @@
+﻿@page "{id:int}"
+@model TM_PE.Pages.FieldTechnician.DetailsModel
+@{
+    ViewData["Title"] = "Job Order Details";
+    Layout = "_FieldTechnicianLayout";
+    var badgeClass = Model.JobTicket.Status switch
+    {
+        "Completed" => "bg-success-subtle text-success",
+        "In Progress" => "bg-info-subtle text-info",
+        "Cancelled" => "bg-danger-subtle text-danger",
+        _ => "bg-secondary-subtle text-secondary"
+    };
+}
+
+<div class="container-fluid mt-2" style="max-width: 900px;">
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @Model.ErrorMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <h4 class="fw-bold mb-0">@Model.JobTicket.JobName</h4>
+            <div class="text-muted small">
+                Ticket #@Model.JobTicket.TicketNumber &middot; Viewing as <strong>@Model.CurrentEmployee.FullName</strong>
+                @if (Model.IsLeader)
+                {
+                    <span class="badge bg-primary ms-1">Leader</span>
+                }
+                else
+                {
+                    <span class="badge bg-light text-dark border ms-1">Member (view only)</span>
+                }
+            </div>
+        </div>
+        <a asp-page="./Index" class="btn-close" aria-label="Close"></a>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body p-4">
+
+            <div class="row g-3 mb-3">
+                <div class="col-sm-3">
+                    <div class="text-muted small">Status</div>
+                    <span class="badge rounded-pill @badgeClass px-3 py-2">@Model.JobTicket.Status</span>
+                </div>
+                <div class="col-sm-3">
+                    <div class="text-muted small">Installation Date</div>
+                    <div>@Model.JobTicket.InstallationDate.ToString("M/d/yyyy")</div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="text-muted small">Fiber Plan</div>
+                    <div>₱@Model.JobTicket.FiberPlan / month</div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="text-muted small">Date Created</div>
+                    <div>@Model.JobTicket.DateCreated.ToString("M/d/yyyy")</div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-sm-4">
+                    <div class="text-muted small">Client</div>
+                    <div>@Model.JobTicket.ClientFullName</div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="text-muted small">Primary Number</div>
+                    <div>@Model.JobTicket.PrimaryNumber</div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="text-muted small">Secondary Number</div>
+                    <div>@(string.IsNullOrWhiteSpace(Model.JobTicket.SecondaryNumber) ? "—" : Model.JobTicket.SecondaryNumber)</div>
+                </div>
+            </div>
+
+            <div class="mb-1">
+                <div class="text-muted small mb-2">Location</div>
+                <div class="mb-2">@Model.JobTicket.LocationAddress</div>
+                @if (Model.JobTicket.Latitude != 0 && Model.JobTicket.Longitude != 0)
+                {
+                    <div id="detailMap" style="height:260px; border-radius:8px;"></div>
+                    <div class="text-muted small mt-1">Zoom in or out to check the area — the map position is fixed.</div>
+                }
+            </div>
+
+        </div>
+    </div>
+
+    @* ===================== ASSIGNED TEAM ===================== *@
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body p-4">
+            <h6 class="fw-bold mb-3"><i class="bi bi-people me-1"></i> Assigned Team</h6>
+
+            <div class="d-flex flex-wrap gap-2">
+                @if (Model.JobTicket.Assignments != null && Model.JobTicket.Assignments.Any())
+                {
+                    @foreach (var a in Model.JobTicket.Assignments.Where(a => a.Employee != null))
+                    {
+                        var isYou = a.EmployeeID == Model.CurrentEmployee.EmployeeId;
+                        <span class="badge rounded-pill @(a.IsLeader ? "bg-primary" : "bg-light text-dark border") px-3 py-2">
+                            @a.Employee!.FullName @(a.IsLeader ? "(Leader)" : "") @(isYou ? "(You)" : "")
+                        </span>
+                    }
+                }
+                else
+                {
+                    <span class="text-muted small">No employees assigned.</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* ===================== STATUS (leader only) ===================== *@
+    @if (Model.IsLeader)
+    {
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body p-4">
+                <h6 class="fw-bold mb-3"><i class="bi bi-flag me-1"></i> Update Status</h6>
+                <form method="post" asp-page-handler="UpdateStatus" class="d-flex gap-2">
+                    <input type="hidden" name="jobTicketId" value="@Model.JobTicket.JobTicketID" />
+                    <select name="status" class="form-select" style="max-width: 220px;">
+                        @foreach (var opt in TM_PE.Pages.FieldTechnician.DetailsModel.StatusOptions)
+                        {
+                            <option value="@opt" selected="@(opt == Model.JobTicket.Status)">@opt</option>
+                        }
+                    </select>
+                    <button type="submit" class="btn btn-primary">Save Status</button>
+                </form>
+            </div>
+        </div>
+    }
+
+    @* ===================== SUBMITTED PHOTOS / FILES ===================== *@
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <h6 class="fw-bold mb-1"><i class="bi bi-camera me-1"></i> Submitted Photos / Files</h6>
+            <p class="text-muted small mb-3">
+                @if (Model.IsLeader)
+                {
+                    <text>Upload proof-of-work photos or files below. Only you, as team leader, can upload for this job order.</text>
+                }
+                else
+                {
+                    <text>You can view and download files uploaded by the team leader. Only the leader can upload.</text>
+                }
+            </p>
+
+            @if (Model.IsLeader)
+            {
+                <form method="post" asp-page-handler="UploadSubmission" enctype="multipart/form-data" class="row g-2 align-items-end mb-4">
+                    <input type="hidden" name="jobTicketId" value="@Model.JobTicket.JobTicketID" />
+                    <div class="col-sm-5">
+                        <label class="form-label small">File</label>
+                        <input type="file" name="submissionFile" class="form-control" required />
+                    </div>
+                    <div class="col-sm-5">
+                        <label class="form-label small">Caption (optional)</label>
+                        <input type="text" name="caption" class="form-control" maxlength="300" />
+                    </div>
+                    <div class="col-sm-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-upload"></i> Upload
+                        </button>
+                    </div>
+                </form>
+            }
+
+            @if (Model.JobTicket.Submissions != null && Model.JobTicket.Submissions.Any())
+            {
+                <div class="row g-3">
+                    @foreach (var sub in Model.JobTicket.Submissions)
+                    {
+                        var ext = System.IO.Path.GetExtension(sub.FileName);
+                        var isImage = TM_PE.Pages.FieldTechnician.DetailsModel.ImageExtensions.Contains(ext);
+                        <div class="col-md-3 col-sm-4 col-6">
+                            <div class="card h-100">
+                                @if (isImage)
+                                {
+                                    <img src="~/@sub.FilePath" class="card-img-top" style="height:150px; object-fit:cover;" alt="@sub.FileName" />
+                                }
+                                else
+                                {
+                                    <div class="d-flex align-items-center justify-content-center bg-light" style="height:150px;">
+                                        <i class="bi bi-file-earmark-text" style="font-size:2.5rem;"></i>
+                                    </div>
+                                }
+                                <div class="card-body p-2">
+                                    <div class="small text-truncate" title="@sub.FileName">@sub.FileName</div>
+                                    @if (!string.IsNullOrWhiteSpace(sub.Caption))
+                                    {
+                                        <div class="text-muted small text-truncate" title="@sub.Caption">@sub.Caption</div>
+                                    }
+                                    <div class="text-muted small">By @(sub.Employee?.FullName ?? "—")</div>
+                                    <div class="text-muted small">@sub.DateSubmitted.ToString("M/d/yyyy h:mm tt")</div>
+                                    <a asp-page-handler="Download" asp-route-submissionId="@sub.JobTicketSubmissionID" class="btn btn-sm btn-outline-secondary w-100 mt-1">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="text-muted">No photos or files submitted yet.</div>
+            }
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end mb-4">
+        <a asp-page="./Index" class="btn btn-outline-secondary">Back to My Job Orders</a>
+    </div>
+</div>
+
+@section Scripts {
+    @if (Model.JobTicket.Latitude != 0 && Model.JobTicket.Longitude != 0)
+    {
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script>
+            (function () {
+                const lat = @Model.JobTicket.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                const lng = @Model.JobTicket.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                // View-only map: position is fixed (no panning/dragging), but the
+                // technician can still zoom in/out to get a better look at the area.
+                const map = L.map('detailMap', {
+                    dragging: false,
+                    touchZoom: true,
+                    scrollWheelZoom: true,
+                    doubleClickZoom: true,
+                    boxZoom: false,
+                    keyboard: false,
+                    zoomControl: true
+                }).setView([lat, lng], 16);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+
+                // Marker is fixed in place; it isn't draggable.
+                L.marker([lat, lng]).addTo(map);
+            })();
+        </script>
+    }
+}
