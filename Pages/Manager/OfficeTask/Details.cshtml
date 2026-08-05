@@ -2,6 +2,7 @@
 @model TM_PE.Pages.Manager.OfficeTask.DetailsModel
 @{
     ViewData["Title"] = "Task Records";
+    Layout = "_Layout";
     var badgeClass = Model.OfficeTask.Status switch
     {
         "Completed" => "bg-success-subtle text-success",

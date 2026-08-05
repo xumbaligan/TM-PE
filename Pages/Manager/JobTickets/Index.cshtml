@@ -2,6 +2,7 @@
 @model TM_PE.Pages.Manager.JobTickets.IndexModel
 @{
     ViewData["Title"] = "Job Tickets";
+    Layout = "_Layout";
 }
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="fw-bold mb-0">Job Ticket Management</h3>
@@ -15,7 +16,7 @@
         <thead>
             <tr class="text-muted small">
                 <th>Task Number</th>
-                <th>Job Name</th>
+                <th>Job Type</th>
                 <th>Client</th>
                 <th>Leader</th>
                 <th>Status</th>
@@ -35,13 +36,14 @@
                 var leader = item.Assignments?.FirstOrDefault(a => a.IsLeader)?.Employee;
                 <tr>
                     <td class="text-muted">@item.TicketNumber</td>
-                    <td class="fw-semibold">@item.JobName</td>
+                    <td class="fw-semibold">@item.JobType</td>
                     <td>@item.ClientFullName</td>
                     <td>@(leader != null ? leader.FullName : "—")</td>
                     <td>
                         @{
                             var badgeClass = item.Status switch
                             {
+                                "Approved" => "bg-primary-subtle text-primary",
                                 "Completed" => "bg-success-subtle text-success",
                                 "In Progress" => "bg-info-subtle text-info",
                                 "Cancelled" => "bg-danger-subtle text-danger",
@@ -52,16 +54,25 @@
                             @item.Status
                         </span>
                     </td>
-                    <td class="text-muted">@item.InstallationDate.ToString("M/d/yyyy")</td>
+                    <td class="text-muted">@item.ServiceDate.ToString("M/d/yyyy")</td>
                     <td class="text-end">
                         <button type="button" class="btn btn-sm btn-link text-secondary p-1" title="View"
                                 data-bs-toggle="modal" data-bs-target="#viewModal-@item.JobTicketID">
                             <i class="bi bi-eye"></i>
                         </button>
-                        <a asp-page="./Edit" asp-route-id="@item.JobTicketID"
-                           class="btn btn-sm btn-link text-secondary p-1" title="Edit">
-                            <i class="bi bi-pencil"></i>
-                        </a>
+                        @if (!item.IsApproved)
+                        {
+                            <a asp-page="./Edit" asp-route-id="@item.JobTicketID"
+                               class="btn btn-sm btn-link text-secondary p-1" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        }
+                        else
+                        {
+                            <span class="btn btn-sm btn-link text-muted p-1" title="Approved tickets can't be edited" style="cursor:not-allowed;">
+                                <i class="bi bi-lock"></i>
+                            </span>
+                        }
                     </td>
                 </tr>
             }
@@ -74,6 +85,7 @@
 {
     var modalBadgeClass = item.Status switch
     {
+        "Approved" => "bg-primary-subtle text-primary",
         "Completed" => "bg-success-subtle text-success",
         "In Progress" => "bg-info-subtle text-info",
         "Cancelled" => "bg-danger-subtle text-danger",
@@ -87,7 +99,7 @@
                 <div class="modal-header">
                     <div>
                         <h5 class="modal-title fw-bold mb-0" id="viewModalLabel-@item.JobTicketID">
-                            @item.JobName
+                            @item.JobType
                         </h5>
                         <div class="text-muted small">Ticket #@item.TicketNumber</div>
                     </div>
@@ -107,8 +119,8 @@
                             <div>@item.DateCreated.ToString("M/d/yyyy")</div>
                         </div>
                         <div class="col-sm-4">
-                            <div class="text-muted small">Installation Date</div>
-                            <div>@item.InstallationDate.ToString("M/d/yyyy")</div>
+                            <div class="text-muted small">@item.ServiceDateLabel</div>
+                            <div>@item.ServiceDate.ToString("M/d/yyyy")</div>
                         </div>
                     </div>
 
@@ -128,14 +140,28 @@
                     </div>
 
                     <div class="row g-3 mb-4">
-                        <div class="col-sm-4">
-                            <div class="text-muted small">Fiber Plan</div>
-                            <div>₱@item.FiberPlan</div>
-                        </div>
-                        <div class="col-sm-8">
-                            <div class="text-muted small">Location</div>
-                            <div>@item.LocationAddress</div>
-                        </div>
+                        @if (item.JobType == "Installation")
+                        {
+                            <div class="col-sm-4">
+                                <div class="text-muted small">Fiber Plan</div>
+                                <div>₱@item.FiberPlan</div>
+                            </div>
+                            <div class="col-sm-8">
+                                <div class="text-muted small">Location</div>
+                                <div>@item.LocationAddress</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="col-sm-4">
+                                <div class="text-muted small">Description</div>
+                                <div>@item.Description</div>
+                            </div>
+                            <div class="col-sm-8">
+                                <div class="text-muted small">Location</div>
+                                <div>@item.LocationAddress</div>
+                            </div>
+                        }
                     </div>
 
                     <div class="mb-2">

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using TM_PE.Data;
+using TM_PE.Model;
 
 namespace TM_PE.Pages.Manager.JobTickets
 {
@@ -52,9 +53,23 @@ namespace TM_PE.Pages.Manager.JobTickets
         public async Task<IActionResult> OnPostCloseAsync(int id)
         {
             var ticket = await _context.JobTickets.FindAsync(id);
-            if (ticket != null && ticket.Status != "Completed")
+            if (ticket != null && ticket.Status != JobTicketStatuses.Completed)
             {
-                ticket.Status = "Completed";
+                ticket.Status = JobTicketStatuses.Completed;
+                await _context.SaveChangesAsync();
+            }
+
+            return RedirectToPage(new { id });
+        }
+
+        // Manager approves a completed job ticket. Once approved, the ticket is
+        // locked from further edits.
+        public async Task<IActionResult> OnPostApproveAsync(int id)
+        {
+            var ticket = await _context.JobTickets.FindAsync(id);
+            if (ticket != null && ticket.Status == JobTicketStatuses.Completed)
+            {
+                ticket.Status = JobTicketStatuses.Approved;
                 await _context.SaveChangesAsync();
             }
 

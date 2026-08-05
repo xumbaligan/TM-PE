@@ -20,6 +20,8 @@ namespace TM_PE.Pages.Manager.JobTickets
 
         public int[] FiberPlanOptions { get; set; } = FiberPlans.Allowed;
 
+        public string[] JobTypeOptions { get; set; } = JobTypes.Allowed;
+
         public async Task<IActionResult> OnGetAsync(int? id)
         {
             if (id == null)
@@ -37,6 +39,12 @@ namespace TM_PE.Pages.Manager.JobTickets
                 return NotFound();
             }
 
+            // Approved tickets are locked — no further edits allowed.
+            if (jobTicket.Status == JobTicketStatuses.Approved)
+            {
+                return RedirectToPage("Details", new { id });
+            }
+
             JobTicket = jobTicket;
 
             return Page();
@@ -48,9 +56,42 @@ namespace TM_PE.Pages.Manager.JobTickets
             ModelState.Remove("JobTicket.TicketNumber");
             ModelState.Remove("JobTicket.Assignments");
             ModelState.Remove("JobTicket.Submissions");
+            // FiberPlan/Description are conditionally required depending on JobType,
+            // so their built-in validation attributes are skipped in favor of manual checks below.
+            ModelState.Remove("JobTicket.FiberPlan");
+            ModelState.Remove("JobTicket.Description");
 
-            if (!FiberPlans.Allowed.Contains(JobTicket.FiberPlan))
-                ModelState.AddModelError("JobTicket.FiberPlan", "Please select a valid fiber plan.");
+            var ticket = await _context.JobTickets.FirstOrDefaultAsync(t => t.JobTicketID == JobTicket.JobTicketID);
+
+            if (ticket == null)
+            {
+                return NotFound();
+            }
+
+            // Approved tickets are locked — no further edits allowed, even if this
+            // page was submitted directly.
+            if (ticket.Status == JobTicketStatuses.Approved)
+            {
+                return RedirectToPage("Details", new { id = ticket.JobTicketID });
+            }
+
+            if (!JobTypes.Allowed.Contains(JobTicket.JobType))
+                ModelState.AddModelError("JobTicket.JobType", "Please select a valid job type.");
+
+            if (JobTicket.JobType == JobTypes.Installation)
+            {
+                if (JobTicket.FiberPlan == null || !FiberPlans.Allowed.Contains(JobTicket.FiberPlan.Value))
+                    ModelState.AddModelError("JobTicket.FiberPlan", "Please select a valid fiber plan.");
+
+                JobTicket.Description = null;
+            }
+            else if (JobTicket.JobType == JobTypes.Repair || JobTicket.JobType == JobTypes.Maintenance)
+            {
+                if (string.IsNullOrWhiteSpace(JobTicket.Description))
+                    ModelState.AddModelError("JobTicket.Description", "Please provide a description.");
+
+                JobTicket.FiberPlan = null;
+            }
 
             if (!ModelState.IsValid)
             {
@@ -69,21 +110,15 @@ namespace TM_PE.Pages.Manager.JobTickets
                 return Page();
             }
 
-            var ticket = await _context.JobTickets.FirstOrDefaultAsync(t => t.JobTicketID == JobTicket.JobTicketID);
-
-            if (ticket == null)
-            {
-                return NotFound();
-            }
-
             // Assignees (and who leads them) are intentionally locked after creation —
             // only the ticket's own details and status can change here.
-            ticket.JobName = JobTicket.JobName;
+            ticket.JobType = JobTicket.JobType;
             ticket.ClientFullName = JobTicket.ClientFullName;
             ticket.PrimaryNumber = JobTicket.PrimaryNumber;
             ticket.SecondaryNumber = JobTicket.SecondaryNumber;
             ticket.FiberPlan = JobTicket.FiberPlan;
-            ticket.InstallationDate = JobTicket.InstallationDate;
+            ticket.Description = JobTicket.Description;
+            ticket.ServiceDate = JobTicket.ServiceDate;
             ticket.LocationAddress = JobTicket.LocationAddress;
             ticket.Latitude = JobTicket.Latitude;
             ticket.Longitude = JobTicket.Longitude;

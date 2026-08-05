@@ -118,6 +118,12 @@ namespace TM_PE.Pages.FieldTechnician
                 return RedirectToPage(new { id = jobTicketId });
             }
 
+            if (ticket.Status == JobTicketStatuses.Approved)
+            {
+                ErrorMessage = "This job order has been approved and can no longer be updated.";
+                return RedirectToPage(new { id = jobTicketId });
+            }
+
             if (submissionFile == null || submissionFile.Length == 0)
             {
                 ErrorMessage = "Please choose a file to upload.";
@@ -182,6 +188,12 @@ namespace TM_PE.Pages.FieldTechnician
             if (!myAssignment.IsLeader)
             {
                 ErrorMessage = "Only the team leader can change the status of this job order.";
+                return RedirectToPage(new { id = jobTicketId });
+            }
+
+            if (ticket.Status == JobTicketStatuses.Approved)
+            {
+                ErrorMessage = "This job order has been approved and can no longer be updated.";
                 return RedirectToPage(new { id = jobTicketId });
             }
 

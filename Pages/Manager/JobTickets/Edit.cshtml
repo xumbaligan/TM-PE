@@ -3,6 +3,7 @@
 
 @{
     ViewData["Title"] = "Edit Job Ticket";
+    Layout = "_Layout";
 }
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -33,11 +34,16 @@
                 </div>
             </div>
 
-            <!-- Job Name -->
+            <!-- Job Type -->
             <div class="mb-3">
-                <label class="form-label fw-semibold">Job Name <span class="text-danger">*</span></label>
-                <input asp-for="JobTicket.JobName" class="form-control" />
-                <span asp-validation-for="JobTicket.JobName" class="text-danger"></span>
+                <label class="form-label fw-semibold">Job Type <span class="text-danger">*</span></label>
+                <select asp-for="JobTicket.JobType" id="jobTypeSelect" class="form-select">
+                    @foreach (var type in Model.JobTypeOptions)
+                    {
+                        <option value="@type" selected="@(type == Model.JobTicket.JobType)">@type</option>
+                    }
+                </select>
+                <span asp-validation-for="JobTicket.JobType" class="text-danger"></span>
             </div>
 
             <!-- Client Info -->
@@ -61,11 +67,12 @@
                 </div>
             </div>
 
-            <!-- Fiber Plan + Installation Date + Status -->
+            <!-- Fiber Plan (Installation) / Description (Repair, Maintenance) + Date + Status -->
             <div class="row mb-3">
-                <div class="col-md-4">
+                <div class="col-md-4" id="fiberPlanGroup">
                     <label class="form-label fw-semibold">Fiber Plan <span class="text-danger">*</span></label>
-                    <select asp-for="JobTicket.FiberPlan" class="form-select">
+                    <select asp-for="JobTicket.FiberPlan" id="fiberPlanSelect" class="form-select">
+                        <option value="">Select a plan</option>
                         @foreach (var plan in Model.FiberPlanOptions)
                         {
                             <option value="@plan" selected="@(plan == Model.JobTicket.FiberPlan)">₱@plan / month</option>
@@ -74,12 +81,18 @@
                     <span asp-validation-for="JobTicket.FiberPlan" class="text-danger"></span>
                 </div>
 
+                <div class="col-md-4 d-none" id="descriptionGroup">
+                    <label class="form-label fw-semibold">Description <span class="text-danger">*</span></label>
+                    <textarea asp-for="JobTicket.Description" id="descriptionInput" class="form-control" rows="1" maxlength="500"></textarea>
+                    <span asp-validation-for="JobTicket.Description" class="text-danger"></span>
+                </div>
+
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold">Date of Installation <span class="text-danger">*</span></label>
-                    <input asp-for="JobTicket.InstallationDate" type="date"
-                           value="@Model.JobTicket.InstallationDate.ToString("yyyy-MM-dd")"
+                    <label class="form-label fw-semibold" id="serviceDateLabel">Date of Installation <span class="text-danger">*</span></label>
+                    <input asp-for="JobTicket.ServiceDate" type="date"
+                           value="@Model.JobTicket.ServiceDate.ToString("yyyy-MM-dd")"
                            class="form-control" />
-                    <span asp-validation-for="JobTicket.InstallationDate" class="text-danger"></span>
+                    <span asp-validation-for="JobTicket.ServiceDate" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-4">
@@ -97,7 +110,15 @@
             <div class="card mb-3">
                 <div class="card-body">
                     <h5 class="fw-semibold mb-2">📍 Job Location <span class="text-danger">*</span></h5>
-                    <p class="text-muted small mb-2">Click on the map to re-pin the job site if needed.</p>
+                    <p class="text-muted small mb-2">Search for an address or click on the map to re-pin the job site if needed.</p>
+
+                    <div class="input-group mb-2">
+                        <input type="text" id="locationSearch" class="form-control" placeholder="Search for an address..." autocomplete="off" />
+                        <button type="button" id="locationSearchBtn" class="btn btn-outline-secondary">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+                    <div id="locationSearchResults" class="list-group mb-2" style="max-height:180px; overflow-y:auto;"></div>
 
                     <div id="locationMap" style="height:320px; border-radius:8px;"></div>
 
@@ -191,8 +212,7 @@
                 }
             }
 
-            map.on('click', function (e) {
-                const { lat, lng } = e.latlng;
+            function setPin(lat, lng) {
                 if (marker) {
                     marker.setLatLng([lat, lng]);
                 } else {
@@ -207,7 +227,92 @@
                 latInput.value = lat;
                 lngInput.value = lng;
                 reverseGeocode(lat, lng);
+            }
+
+            map.on('click', function (e) {
+                setPin(e.latlng.lat, e.latlng.lng);
             });
+
+            // ---------------- ADDRESS SEARCH ----------------
+            const locationSearch = document.getElementById('locationSearch');
+            const locationSearchBtn = document.getElementById('locationSearchBtn');
+            const locationSearchResults = document.getElementById('locationSearchResults');
+
+            async function searchAddress() {
+                const query = locationSearch.value.trim();
+                locationSearchResults.innerHTML = '';
+                if (!query) return;
+
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}`);
+                    const results = await res.json();
+
+                    if (!results || results.length === 0) {
+                        locationSearchResults.innerHTML = '<div class="list-group-item small text-muted">No matches found.</div>';
+                        return;
+                    }
+
+                    results.forEach(function (r) {
+                        const item = document.createElement('button');
+                        item.type = 'button';
+                        item.className = 'list-group-item list-group-item-action small';
+                        item.textContent = r.display_name;
+                        item.addEventListener('click', function () {
+                            const lat = parseFloat(r.lat);
+                            const lng = parseFloat(r.lon);
+                            map.setView([lat, lng], 17);
+                            setPin(lat, lng);
+                            locationSearchResults.innerHTML = '';
+                            locationSearch.value = r.display_name;
+                        });
+                        locationSearchResults.appendChild(item);
+                    });
+                } catch (err) {
+                    locationSearchResults.innerHTML = '<div class="list-group-item small text-danger">Search failed. Please try again.</div>';
+                }
+            }
+
+            locationSearchBtn.addEventListener('click', searchAddress);
+            locationSearch.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    searchAddress();
+                }
+            });
+
+            // ---------------- JOB TYPE TOGGLE ----------------
+            const jobTypeSelect = document.getElementById('jobTypeSelect');
+            const fiberPlanGroup = document.getElementById('fiberPlanGroup');
+            const fiberPlanSelect = document.getElementById('fiberPlanSelect');
+            const descriptionGroup = document.getElementById('descriptionGroup');
+            const descriptionInput = document.getElementById('descriptionInput');
+            const serviceDateLabel = document.getElementById('serviceDateLabel');
+
+            function applyJobType() {
+                const type = jobTypeSelect.value;
+                if (type === 'Repair') {
+                    fiberPlanGroup.classList.add('d-none');
+                    descriptionGroup.classList.remove('d-none');
+                    fiberPlanSelect.removeAttribute('required');
+                    descriptionInput.setAttribute('required', 'required');
+                    serviceDateLabel.innerHTML = 'Date of Repair <span class="text-danger">*</span>';
+                } else if (type === 'Maintenance') {
+                    fiberPlanGroup.classList.add('d-none');
+                    descriptionGroup.classList.remove('d-none');
+                    fiberPlanSelect.removeAttribute('required');
+                    descriptionInput.setAttribute('required', 'required');
+                    serviceDateLabel.innerHTML = 'Date of Maintenance <span class="text-danger">*</span>';
+                } else {
+                    fiberPlanGroup.classList.remove('d-none');
+                    descriptionGroup.classList.add('d-none');
+                    fiberPlanSelect.setAttribute('required', 'required');
+                    descriptionInput.removeAttribute('required');
+                    serviceDateLabel.innerHTML = 'Date of Installation <span class="text-danger">*</span>';
+                }
+            }
+
+            jobTypeSelect.addEventListener('change', applyJobType);
+            applyJobType();
         })();
     </script>
 }

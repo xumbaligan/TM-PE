@@ -1,6 +1,9 @@
 ﻿@page
 @model IndexModel
-@{ ViewData["Title"] = "Dashboard"; }
+@{
+    ViewData["Title"] = "Dashboard";
+    Layout = "_Layout"; 
+}
 
 <h2 class="mb-4">Dashboard</h2>
 <div class="row g-3 mb-4">
@@ -29,3 +32,159 @@
         </div>
     </div>
 </div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card card-stat p-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="icon"><i class="bi bi-kanban"></i></div>
+                <div><div class="text-muted small">Active Office Tasks</div><h3 class="mb-0">@Model.ActiveOfficeTaskCount</h3></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-stat p-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="icon text-danger"><i class="bi bi-exclamation-triangle"></i></div>
+                <div><div class="text-muted small">Overdue Office Tasks</div><h3 class="mb-0">@Model.OverdueOfficeTaskCount</h3></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-stat p-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="icon text-success"><i class="bi bi-check2-circle"></i></div>
+                <div><div class="text-muted small">Completed Office Tasks</div><h3 class="mb-0">@Model.CompletedOfficeTaskCount</h3></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card p-3 mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold mb-0">📊 Workload Monitoring — Office Staff</h5>
+        <a asp-page="/Manager/OfficeTask/Index" class="btn btn-sm btn-outline-primary">View Office Tasks</a>
+    </div>
+
+    @if (!Model.Workload.Any())
+    {
+        <p class="text-muted small mb-0">No active Office Staff to monitor yet.</p>
+    }
+    else
+    {
+        <div class="mb-4" style="height:300px; position:relative;">
+            <canvas id="workloadChart"></canvas>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr class="text-muted small">
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th class="text-center">Active Tasks</th>
+                        <th class="text-center">Overdue</th>
+                        <th class="text-center">Completed</th>
+                        <th class="text-center">Pending Activities</th>
+                        <th class="text-center">Avg. Score</th>
+                        <th style="width:220px;">Workload</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var w in Model.Workload)
+                    {
+                        var levelClass = w.WorkloadLevel switch
+                        {
+                            "Heavy" => "bg-danger-subtle text-danger",
+                            "Moderate" => "bg-warning-subtle text-warning",
+                            _ => "bg-success-subtle text-success"
+                        };
+                        var barClass = w.WorkloadLevel switch
+                        {
+                            "Heavy" => "bg-danger",
+                            "Moderate" => "bg-warning",
+                            _ => "bg-success"
+                        };
+                        // Cap the visual bar at a reasonable ceiling so one very
+                        // heavy workload doesn't flatten everyone else's bar.
+                        var barPercent = Math.Min(100, w.WorkloadPoints * 10);
+
+                        <tr>
+                            <td class="fw-semibold">@w.FullName</td>
+                            <td class="text-muted">@w.DepartmentName</td>
+                            <td class="text-center">@w.ActiveTasks</td>
+                            <td class="text-center">
+                                @if (w.OverdueTasks > 0)
+                                {
+                                    <span class="text-danger fw-semibold">@w.OverdueTasks</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">0</span>
+                                }
+                            </td>
+                            <td class="text-center">@w.CompletedTasks</td>
+                            <td class="text-center">@w.PendingActivities</td>
+                            <td class="text-center">@w.AvgScore%</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="progress flex-grow-1" style="height:8px;">
+                                        <div class="progress-bar @barClass" style="width:@(barPercent)%"></div>
+                                    </div>
+                                    <span class="badge rounded-pill @levelClass px-2">@w.WorkloadLevel</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+    <script>
+        (function () {
+            const labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Workload.Select(w => w.FullName)));
+            const points = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Workload.Select(w => w.WorkloadPoints)));
+            const levels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Workload.Select(w => w.WorkloadLevel)));
+
+            const colorFor = level => level === 'Heavy' ? '#dc3545'
+                : level === 'Moderate' ? '#ffc107'
+                : '#198754';
+
+            new Chart(document.getElementById('workloadChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Workload Points',
+                        data: points,
+                        backgroundColor: levels.map(colorFor),
+                        borderRadius: 4,
+                        maxBarThickness: 48
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: ctx => 'Level: ' + levels[ctx.dataIndex]
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { precision: 0 }
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
+}

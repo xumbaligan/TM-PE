@@ -34,6 +34,8 @@ namespace TM_PE.Pages.Manager.JobTickets
 
         public int[] FiberPlanOptions { get; set; } = FiberPlans.Allowed;
 
+        public string[] JobTypeOptions { get; set; } = JobTypes.Allowed;
+
         public async Task OnGetAsync()
         {
             FieldTechnicianList = await _context.Employees
@@ -42,7 +44,7 @@ namespace TM_PE.Pages.Manager.JobTickets
                 .ToListAsync();
 
             JobTicket.DateCreated = DateTime.Now;
-            JobTicket.InstallationDate = DateTime.Now;
+            JobTicket.ServiceDate = DateTime.Now;
             NextTicketNumber = await GenerateTicketNumberAsync();
         }
 
@@ -51,14 +53,33 @@ namespace TM_PE.Pages.Manager.JobTickets
             // Auto-generated / hidden fields shouldn't be required on postback validation
             ModelState.Remove("JobTicket.TicketNumber");
             ModelState.Remove("JobTicket.Status");
+            // FiberPlan/Description are conditionally required depending on JobType,
+            // so their built-in validation attributes are skipped in favor of manual checks below.
+            ModelState.Remove("JobTicket.FiberPlan");
+            ModelState.Remove("JobTicket.Description");
 
             SelectedEmployeeIds ??= new();
 
-            if (JobTicket.InstallationDate.Date < DateTime.Now.Date)
-                ModelState.AddModelError("JobTicket.InstallationDate", "Installation date cannot be set to a previous day.");
+            if (!JobTypes.Allowed.Contains(JobTicket.JobType))
+                ModelState.AddModelError("JobTicket.JobType", "Please select a valid job type.");
 
-            if (!FiberPlans.Allowed.Contains(JobTicket.FiberPlan))
-                ModelState.AddModelError("JobTicket.FiberPlan", "Please select a valid fiber plan.");
+            if (JobTicket.ServiceDate.Date < DateTime.Now.Date)
+                ModelState.AddModelError("JobTicket.ServiceDate", "Date cannot be set to a previous day.");
+
+            if (JobTicket.JobType == JobTypes.Installation)
+            {
+                if (JobTicket.FiberPlan == null || !FiberPlans.Allowed.Contains(JobTicket.FiberPlan.Value))
+                    ModelState.AddModelError("JobTicket.FiberPlan", "Please select a valid fiber plan.");
+
+                JobTicket.Description = null;
+            }
+            else if (JobTicket.JobType == JobTypes.Repair || JobTicket.JobType == JobTypes.Maintenance)
+            {
+                if (string.IsNullOrWhiteSpace(JobTicket.Description))
+                    ModelState.AddModelError("JobTicket.Description", "Please provide a description.");
+
+                JobTicket.FiberPlan = null;
+            }
 
             if (!SelectedEmployeeIds.Any())
                 ModelState.AddModelError(string.Empty, "Please assign at least one field technician.");
@@ -93,7 +114,7 @@ namespace TM_PE.Pages.Manager.JobTickets
             }
 
             JobTicket.TicketNumber = await GenerateTicketNumberAsync();
-            JobTicket.Status = "Pending";
+            JobTicket.Status = JobTicketStatuses.Pending;
 
             _context.JobTickets.Add(JobTicket);
             await _context.SaveChangesAsync(); // generates JobTicket.JobTicketID
