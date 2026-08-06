@@ -1,13 +1,11 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using TM_PE.Data;
 using TM_PE.Model;
 
-namespace TM_PE.Pages.Manager.Departments;
+namespace TM_PE.Pages.Admin.Departments;
 
-// View-only: managers can browse departments, but Create/Edit/Delete
-// remain Admin-only (see Pages/Admin/Departments).
 public class IndexModel : PageModel
 {
     private readonly AppDbContext _db;
@@ -23,4 +21,5 @@ public class IndexModel : PageModel
             q = q.Where(d => d.DepartmentName.Contains(Search));
         Departments = await q.OrderBy(d => d.DepartmentName).ToListAsync();
     }
+
 }

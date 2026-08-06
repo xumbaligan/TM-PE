@@ -1,13 +1,11 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using TM_PE.Data;
 using CriteriaModel = TM_PE.Model.Criteria;
 
-namespace TM_PE.Pages.Manager.Criteria;
+namespace TM_PE.Pages.Admin.Criteria;
 
-// View-only: managers can browse criteria, but Create/Edit/Delete
-// remain Admin-only (see Pages/Admin/Criteria).
 public class IndexModel : PageModel
 {
     private readonly AppDbContext _db;
@@ -23,4 +21,6 @@ public class IndexModel : PageModel
             q = q.Where(c => c.CriteriaName.Contains(Search));
         Items = await q.OrderBy(c => c.CriteriaName).ToListAsync();
     }
+
+
 }

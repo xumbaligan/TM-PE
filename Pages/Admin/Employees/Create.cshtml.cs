@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using TM_PE.Data;
 using TM_PE.Model;
 
-namespace TM_PE.Pages.Manager.Employees;
+namespace TM_PE.Pages.Admin.Employees;
 
 public class CreateModel : PageModel
 {

@@ -1,31 +1,30 @@
-﻿
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using TM_PE.Data;
-using CriteriaModel = TM_PE.Model.Criteria;
+using TM_PE.Model;
 
-namespace TM_PE.Pages.Manager.Criteria;
+namespace TM_PE.Pages.Admin.Departments;
 
 public class EditModel : PageModel
 {
     private readonly AppDbContext _db;
     public EditModel(AppDbContext db) => _db = db;
 
-    [BindProperty] public CriteriaModel Item { get; set; } = new();
+    [BindProperty] public Department Department { get; set; } = new();
 
     public async Task<IActionResult> OnGetAsync(int id)
     {
-        var c = await _db.Criteria.FindAsync(id);
-        if (c == null) return NotFound();
-        Item = c;
+        var d = await _db.Departments.FindAsync(id);
+        if (d == null) return NotFound();
+        Department = d;
         return Page();
     }
 
     public async Task<IActionResult> OnPostAsync()
     {
         if (!ModelState.IsValid) return Page();
-        _db.Attach(Item).State = EntityState.Modified;
+        _db.Attach(Department).State = EntityState.Modified;
         await _db.SaveChangesAsync();
         return RedirectToPage("Index");
     }

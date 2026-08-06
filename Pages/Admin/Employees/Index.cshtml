@@ -1,13 +1,13 @@
 ﻿@page
-@model TM_PE.Pages.Manager.Employees.IndexModel
+@model TM_PE.Pages.Admin.Employees.IndexModel
 @{
     ViewData["Title"] = "Employees";
-    Layout = "_Layout";
+    Layout = "_Admin";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2>Employees</h2>
-    <span class="badge badge-soft-primary"><i class="bi bi-eye"></i> View Only</span>
+    <a class="btn btn-primary" asp-page="Create"><i class="bi bi-plus-lg"></i> New Employee</a>
 </div>
 
 <form method="get" class="row g-2 mb-3">
@@ -33,19 +33,20 @@
                 <th>Role</th>
                 <th>Date Hired</th>
                 <th>Status</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
             @if (!Model.Employees.Any())
             {
                 <tr id="emptyRow">
-                    <td colspan="5" class="text-center text-muted py-4">No employees found</td>
+                    <td colspan="6" class="text-center text-muted py-4">No employees found</td>
                 </tr>
             }
             else
             {
                 <tr id="emptyRow" style="display:none;">
-                    <td colspan="5" class="text-center text-muted py-4">No employees found</td>
+                    <td colspan="6" class="text-center text-muted py-4">No employees found</td>
                 </tr>
             }
 
@@ -72,6 +73,11 @@
                         {
                             <span class="badge badge-soft-warning">Inactive</span>
                         }
+                    </td>
+                    <td>
+                        <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@e.EmployeeId">
+                            <i class="bi bi-pencil"></i>
+                        </a>
                     </td>
                 </tr>
             }

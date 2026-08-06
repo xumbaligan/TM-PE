@@ -1,13 +1,11 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using TM_PE.Data;
 using TM_PE.Model;
 
-namespace TM_PE.Pages.Manager.Employees;
+namespace TM_PE.Pages.Admin.Employees;
 
-// View-only: managers can browse employees, but Create/Edit/Delete
-// remain Admin-only (see Pages/Admin/Employees).
 public class IndexModel : PageModel
 {
     private readonly AppDbContext _db;
