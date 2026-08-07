@@ -65,14 +65,15 @@
                 <span asp-validation-for="JobTicket.JobType" class="text-danger"></span>
             </div>
 
-            <!-- Client Info -->
-            <div class="row mb-3">
+            <!-- Client Info (auto-cleared/hidden when Job Type = Maintenance) -->
+            <div class="row mb-3" id="clientInfoGroup">
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">
                         Full Name (Client) <span class="text-danger">*</span>
                     </label>
 
                     <input asp-for="JobTicket.ClientFullName"
+                           id="clientFullNameInput"
                            class="form-control"
                            placeholder="e.g. Juan Dela Cruz" />
 
@@ -85,6 +86,7 @@
                     </label>
 
                     <input asp-for="JobTicket.PrimaryNumber"
+                           id="primaryNumberInput"
                            class="form-control"
                            placeholder="09xx xxx xxxx" />
 
@@ -97,6 +99,7 @@
                     </label>
 
                     <input asp-for="JobTicket.SecondaryNumber"
+                           id="secondaryNumberInput"
                            class="form-control"
                            placeholder="Optional" />
 
@@ -346,6 +349,28 @@
             const descriptionInput = document.getElementById('descriptionInput');
             const serviceDateLabel = document.getElementById('serviceDateLabel');
 
+            // Client Info (Full Name / Primary / Secondary) — only collected for
+            // non-Maintenance jobs. Switching to Maintenance clears whatever was typed.
+            const clientInfoGroup = document.getElementById('clientInfoGroup');
+            const clientFullNameInput = document.getElementById('clientFullNameInput');
+            const primaryNumberInput = document.getElementById('primaryNumberInput');
+            const secondaryNumberInput = document.getElementById('secondaryNumberInput');
+
+            function applyClientInfoVisibility(type) {
+                if (type === 'Maintenance') {
+                    clientInfoGroup.classList.add('d-none');
+                    clientFullNameInput.value = '';
+                    primaryNumberInput.value = '';
+                    secondaryNumberInput.value = '';
+                    clientFullNameInput.removeAttribute('required');
+                    primaryNumberInput.removeAttribute('required');
+                } else {
+                    clientInfoGroup.classList.remove('d-none');
+                    clientFullNameInput.setAttribute('required', 'required');
+                    primaryNumberInput.setAttribute('required', 'required');
+                }
+            }
+
             function applyJobType() {
                 const type = jobTypeSelect.value;
                 if (type === 'Installation') {
@@ -360,6 +385,12 @@
                     fiberPlanSelect.removeAttribute('required');
                     descriptionInput.setAttribute('required', 'required');
                     serviceDateLabel.innerHTML = 'Date of Repair <span class="text-danger">*</span>';
+                } else if (type === 'Inspection') {
+                    fiberPlanGroup.classList.add('d-none');
+                    descriptionGroup.classList.remove('d-none');
+                    fiberPlanSelect.removeAttribute('required');
+                    descriptionInput.setAttribute('required', 'required');
+                    serviceDateLabel.innerHTML = 'Date of Inspection <span class="text-danger">*</span>';
                 } else if (type === 'Maintenance') {
                     fiberPlanGroup.classList.add('d-none');
                     descriptionGroup.classList.remove('d-none');
@@ -371,6 +402,7 @@
                     descriptionGroup.classList.add('d-none');
                     serviceDateLabel.innerHTML = 'Date <span class="text-danger">*</span>';
                 }
+                applyClientInfoVisibility(type);
             }
 
             jobTypeSelect.addEventListener('change', applyJobType);

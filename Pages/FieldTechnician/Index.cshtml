@@ -58,7 +58,7 @@
                                 <div class="fw-semibold">Ticket #@ticket.TicketNumber</div>
                             </td>
                             <td>@ticket.JobType</td>
-                            <td>@ticket.ClientFullName</td>
+                            <td>@(ticket.JobType == TM_PE.Model.JobTypes.Maintenance ? "—" : ticket.ClientFullName)</td>
                             <td>@ticket.ServiceDate.ToString("M/d/yyyy")</td>
                             <td><span class="badge rounded-pill @badgeClass px-3 py-2">@ticket.Status</span></td>
                             <td>

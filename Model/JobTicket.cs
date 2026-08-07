@@ -15,8 +15,9 @@ namespace TM_PE.Model
         public const string Installation = "Installation";
         public const string Repair = "Repair";
         public const string Maintenance = "Maintenance";
+        public const string Inspection = "Inspection";
 
-        public static readonly string[] Allowed = { Installation, Repair, Maintenance };
+        public static readonly string[] Allowed = { Installation, Repair, Maintenance, Inspection };
     }
 
     // Job ticket lifecycle. "Approved" is a manager-only, terminal state — once a

@@ -46,7 +46,7 @@
                                 <th>Technician</th>
                                 <th>Department</th>
                                 <th class="text-center">Active Tickets</th>
-                                <th>Ticket Details</th>
+                                <th class="text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -65,28 +65,15 @@
                                             <span class="text-muted">0</span>
                                         }
                                     </td>
-                                    <td>
-                                        @if (!t.Tickets.Any())
-                                        {
-                                            <span class="text-muted small">No active tickets</span>
-                                        }
-                                        else
-                                        {
-                                            <div class="d-flex flex-column gap-1">
-                                                @foreach (var ticket in t.Tickets)
-                                                {
-                                                    var statusClass = ticket.Status == JobTicketStatuses.InProgress
-                                                    ? "bg-warning-subtle text-warning"
-                                                    : "bg-secondary-subtle text-secondary";
-                                                    <div class="small">
-                                                        <span class="fw-semibold">@ticket.TicketNumber</span>
-                                                        — @ticket.JobType for @ticket.ClientFullName
-                                                        <span class="badge rounded-pill @statusClass ms-1">@ticket.Status</span>
-                                                        <span class="text-muted">(@ticket.ServiceDate.ToString("MM/dd/yyyy"))</span>
-                                                    </div>
-                                                }
-                                            </div>
-                                        }
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-sm btn-outline-primary technician-view-btn"
+                                                data-bs-toggle="modal" data-bs-target="#technicianModal"
+                                                data-name="@t.FullName"
+                                                data-department="@t.DepartmentName"
+                                                data-active="@t.ActiveTicketCount"
+                                                data-tickets="@System.Text.Json.JsonSerializer.Serialize(t.Tickets)">
+                                            <i class="bi bi-eye"></i> View
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -113,7 +100,7 @@
                                 <th>Staff</th>
                                 <th>Department</th>
                                 <th class="text-center">Active Tasks</th>
-                                <th>Task Details</th>
+                                <th class="text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -132,31 +119,15 @@
                                             <span class="text-muted">0</span>
                                         }
                                     </td>
-                                    <td>
-                                        @if (!s.Tasks.Any())
-                                        {
-                                            <span class="text-muted small">No active tasks</span>
-                                        }
-                                        else
-                                        {
-                                            <div class="d-flex flex-column gap-1">
-                                                @foreach (var task in s.Tasks)
-                                                {
-                                                    var statusClass = task.Status switch
-                                                    {
-                                                        "Overdue" => "bg-danger-subtle text-danger",
-                                                        "In Progress" => "bg-warning-subtle text-warning",
-                                                        _ => "bg-secondary-subtle text-secondary"
-                                                    };
-                                                    <div class="small">
-                                                        <span class="fw-semibold">@task.TaskNumber</span>
-                                                        — @task.TaskName
-                                                        <span class="badge rounded-pill @statusClass ms-1">@task.Status</span>
-                                                        <span class="text-muted">(due @task.DueDate.ToString("MM/dd/yyyy"))</span>
-                                                    </div>
-                                                }
-                                            </div>
-                                        }
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-sm btn-outline-primary staff-view-btn"
+                                                data-bs-toggle="modal" data-bs-target="#staffModal"
+                                                data-name="@s.FullName"
+                                                data-department="@s.DepartmentName"
+                                                data-active="@s.ActiveTaskCount"
+                                                data-tasks="@System.Text.Json.JsonSerializer.Serialize(s.Tasks)">
+                                            <i class="bi bi-eye"></i> View
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -169,17 +140,14 @@
 
     @* ===================== View 3: Employee Workload Summary ===================== *@
     <div class="tab-pane fade" id="summary-pane" role="tabpanel" aria-labelledby="summary-tab">
-        <div class="card p-3">
+        <div class="card p-3 mb-3">
+            <h6 class="mb-3">Office Staff Workload</h6>
             @if (!Model.Workload.Any())
             {
                 <p class="text-muted small mb-0">No active Office Staff to monitor yet.</p>
             }
             else
             {
-                <div class="mb-4" style="height:300px; position:relative;">
-                    <canvas id="workloadChart"></canvas>
-                </div>
-
                 <div class="table-responsive">
                     <table class="table align-middle">
                         <thead>
@@ -245,13 +213,249 @@
                 </div>
             }
         </div>
+
+        <div class="card p-3">
+            <h6 class="mb-3">Field Technician Workload</h6>
+            @if (!Model.TechnicianWorkload.Any())
+            {
+                <p class="text-muted small mb-0">No active Field Technicians to monitor yet.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr class="text-muted small">
+                                <th>Technician</th>
+                                <th>Department</th>
+                                <th class="text-center">Active Tickets</th>
+                                <th class="text-center">Overdue</th>
+                                <th class="text-center">Completed</th>
+                                <th style="width:220px;">Workload</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var w in Model.TechnicianWorkload)
+                            {
+                                var levelClass = w.WorkloadLevel switch
+                                {
+                                    "Heavy" => "bg-danger-subtle text-danger",
+                                    "Moderate" => "bg-warning-subtle text-warning",
+                                    _ => "bg-success-subtle text-success"
+                                };
+                                var barClass = w.WorkloadLevel switch
+                                {
+                                    "Heavy" => "bg-danger",
+                                    "Moderate" => "bg-warning",
+                                    _ => "bg-success"
+                                };
+                                var barPercent = Math.Min(100, w.WorkloadPoints * 10);
+
+                                <tr>
+                                    <td class="fw-semibold">@w.FullName</td>
+                                    <td class="text-muted">@w.DepartmentName</td>
+                                    <td class="text-center">@w.ActiveTickets</td>
+                                    <td class="text-center">
+                                        @if (w.OverdueTickets > 0)
+                                        {
+                                            <span class="text-danger fw-semibold">@w.OverdueTickets</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">0</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">@w.CompletedTickets</td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="progress flex-grow-1" style="height:8px;">
+                                                <div class="progress-bar @barClass" style="width:@(barPercent)%"></div>
+                                            </div>
+                                            <span class="badge rounded-pill @levelClass px-2">@w.WorkloadLevel</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
     </div>
 
+</div>
+
+@* ===================== Modal: Technician Ticket Details ===================== *@
+<div class="modal fade" id="technicianModal" tabindex="-1" aria-labelledby="technicianModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="technicianModalLabel"><i class="bi bi-person-badge"></i> <span id="technicianModalName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3 small">
+                    <div class="col-sm-6">
+                        <div class="text-muted">Department</div>
+                        <div class="fw-semibold" id="technicianModalDepartment"></div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted">Active Job Tickets</div>
+                        <div class="fw-semibold" id="technicianModalActive"></div>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle table-sm">
+                        <thead>
+                            <tr class="text-muted small">
+                                <th>Ticket Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="technicianModalTicketList">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
+                <a href="/Manager/JobTickets/Index" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-up-right"></i> Open Task
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ===================== Modal: Office Staff Task Details ===================== *@
+<div class="modal fade" id="staffModal" tabindex="-1" aria-labelledby="staffModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="staffModalLabel"><i class="bi bi-person-badge"></i> <span id="staffModalName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3 small">
+                    <div class="col-sm-6">
+                        <div class="text-muted">Department</div>
+                        <div class="fw-semibold" id="staffModalDepartment"></div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted">Active Tasks</div>
+                        <div class="fw-semibold" id="staffModalActive"></div>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle table-sm">
+                        <thead>
+                            <tr class="text-muted small">
+                                <th>Ticket Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="staffModalTaskList">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
+                <a href="/Manager/OfficeTask/Index" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-up-right"></i> Open Task
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 
 @section Scripts {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
     <script>
+        (function () {
+            // ---- Technician "View" modal ----
+            const technicianModal = document.getElementById('technicianModal');
+            if (technicianModal) {
+                technicianModal.addEventListener('show.bs.modal', function (event) {
+                    const btn = event.relatedTarget;
+                    if (!btn) return;
+
+                    const tickets = JSON.parse(btn.getAttribute('data-tickets') || '[]');
+
+                    document.getElementById('technicianModalName').textContent = btn.getAttribute('data-name') || '';
+                    document.getElementById('technicianModalDepartment').textContent = btn.getAttribute('data-department') || '';
+                    document.getElementById('technicianModalActive').textContent = btn.getAttribute('data-active') || '0';
+
+                    const list = document.getElementById('technicianModalTicketList');
+                    list.innerHTML = '';
+
+                    if (tickets.length === 0) {
+                        list.innerHTML = '<tr><td class="text-muted small">No active tickets</td></tr>';
+                        return;
+                    }
+
+                    tickets.forEach(t => {
+                        const statusClass = t.Status === 'In Progress'
+                            ? 'bg-warning-subtle text-warning'
+                            : 'bg-secondary-subtle text-secondary';
+                        const serviceDate = new Date(t.ServiceDate).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td class="small">
+                            <span class="fw-semibold">${t.TicketNumber}</span>
+                            — ${t.JobType} for ${t.ClientFullName}
+                            <span class="badge rounded-pill ${statusClass} ms-1">${t.Status}</span>
+                            <span class="text-muted">(${serviceDate})</span>
+                        </td>`;
+                        list.appendChild(row);
+                    });
+                });
+            }
+
+            // ---- Office Staff "View" modal ----
+            const staffModal = document.getElementById('staffModal');
+            if (staffModal) {
+                staffModal.addEventListener('show.bs.modal', function (event) {
+                    const btn = event.relatedTarget;
+                    if (!btn) return;
+
+                    const tasks = JSON.parse(btn.getAttribute('data-tasks') || '[]');
+
+                    document.getElementById('staffModalName').textContent = btn.getAttribute('data-name') || '';
+                    document.getElementById('staffModalDepartment').textContent = btn.getAttribute('data-department') || '';
+                    document.getElementById('staffModalActive').textContent = btn.getAttribute('data-active') || '0';
+
+                    const list = document.getElementById('staffModalTaskList');
+                    list.innerHTML = '';
+
+                    if (tasks.length === 0) {
+                        list.innerHTML = '<tr><td class="text-muted small">No active tasks</td></tr>';
+                        return;
+                    }
+
+                    tasks.forEach(t => {
+                        const statusClass = t.Status === 'Overdue'
+                            ? 'bg-danger-subtle text-danger'
+                            : t.Status === 'In Progress'
+                                ? 'bg-warning-subtle text-warning'
+                                : 'bg-secondary-subtle text-secondary';
+                        const dueDate = new Date(t.DueDate).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td class="small">
+                            <span class="fw-semibold">${t.TaskNumber}</span>
+                            — ${t.TaskName}
+                            <span class="badge rounded-pill ${statusClass} ms-1">${t.Status}</span>
+                            <span class="text-muted">(due ${dueDate})</span>
+                        </td>`;
+                        list.appendChild(row);
+                    });
+                });
+            }
+        })();
+
         (function () {
             const labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Workload.Select(w => w.FullName)));
             const points = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Workload.Select(w => w.WorkloadPoints)));

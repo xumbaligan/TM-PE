@@ -20,6 +20,9 @@ namespace TM_PE.Pages.Manager.WorkLoadMonitoring
         // ---- View 3: Employee Workload Summary (moved from Dashboard) ----
         public List<WorkloadItem> Workload { get; set; } = new();
 
+        // ---- View 3b: Field Technician Workload Summary ----
+        public List<TechnicianWorkloadItem> TechnicianWorkload { get; set; } = new();
+
         public async Task OnGetAsync()
         {
             var officeTasks = await _db.OfficeTasks
@@ -50,6 +53,7 @@ namespace TM_PE.Pages.Manager.WorkLoadMonitoring
             BuildTechnicianTickets(jobTickets, technicians);
             BuildStaffTasks(officeTasks, officeStaff);
             BuildWorkloadSummary(officeTasks, officeStaff);
+            BuildTechnicianWorkloadSummary(jobTickets, technicians);
         }
 
         private async Task RefreshOverdueStatusesAsync(List<Model.OfficeTask> tasks)
@@ -94,7 +98,7 @@ namespace TM_PE.Pages.Manager.WorkLoadMonitoring
                 {
                     EmployeeId = tech.EmployeeId,
                     FullName = tech.FullName,
-                    DepartmentName = tech.Department?.DepartmentName ?? "—",
+                    DepartmentName = tech.Department?.DepartmentName ?? "?",
                     ActiveTicketCount = active.Count,
                     Tickets = active.Select(t => new TicketSummary
                     {
@@ -124,7 +128,7 @@ namespace TM_PE.Pages.Manager.WorkLoadMonitoring
                 {
                     EmployeeId = emp.EmployeeId,
                     FullName = emp.FullName,
-                    DepartmentName = emp.Department?.DepartmentName ?? "—",
+                    DepartmentName = emp.Department?.DepartmentName ?? "?",
                     ActiveTaskCount = active.Count,
                     Tasks = active.Select(t => new TaskSummary
                     {
@@ -173,13 +177,56 @@ namespace TM_PE.Pages.Manager.WorkLoadMonitoring
                 {
                     EmployeeId = emp.EmployeeId,
                     FullName = emp.FullName,
-                    DepartmentName = emp.Department?.DepartmentName ?? "—",
+                    DepartmentName = emp.Department?.DepartmentName ?? "?",
                     ActiveTasks = activeTasks,
                     OverdueTasks = overdueTasks,
                     CompletedTasks = completedTasks,
                     TotalTasks = assignedTasks.Count,
                     PendingActivities = pendingActivities,
                     AvgScore = avgScore,
+                    WorkloadPoints = points,
+                    WorkloadLevel = level
+                };
+            })
+            .OrderByDescending(w => w.WorkloadPoints)
+            .ToList();
+        }
+
+        // Builds a per-Field-Technician workload snapshot from job ticket
+        // assignments, status, and service date (used as the "due" signal
+        // since JobTicket has no separate due date field).
+        private void BuildTechnicianWorkloadSummary(List<JobTicket> tickets, List<Employee> technicians)
+        {
+            var today = DateTime.Now.Date;
+
+            TechnicianWorkload = technicians.Select(tech =>
+            {
+                var assignedTickets = tickets.Where(t => t.Assignments.Any(a => a.EmployeeID == tech.EmployeeId)).ToList();
+                var activeTickets = assignedTickets.Count(t => t.Status is JobTicketStatuses.Pending or JobTicketStatuses.InProgress);
+                var overdueTickets = assignedTickets.Count(t =>
+                    t.Status is JobTicketStatuses.Pending or JobTicketStatuses.InProgress
+                    && t.ServiceDate.Date < today);
+                var completedTickets = assignedTickets.Count(t => t.Status is JobTicketStatuses.Completed or JobTicketStatuses.Approved);
+
+                // Simple, transparent weighting consistent with the Office Staff
+                // summary: an active ticket counts more, an overdue one counts extra.
+                var points = (activeTickets * 2) + (overdueTickets * 2);
+                var level = points switch
+                {
+                    <= 2 => "Light",
+                    <= 6 => "Moderate",
+                    _ => "Heavy"
+                };
+
+                return new TechnicianWorkloadItem
+                {
+                    EmployeeId = tech.EmployeeId,
+                    FullName = tech.FullName,
+                    DepartmentName = tech.Department?.DepartmentName ?? "?",
+                    ActiveTickets = activeTickets,
+                    OverdueTickets = overdueTickets,
+                    CompletedTickets = completedTickets,
+                    TotalTickets = assignedTickets.Count,
                     WorkloadPoints = points,
                     WorkloadLevel = level
                 };
@@ -234,6 +281,19 @@ namespace TM_PE.Pages.Manager.WorkLoadMonitoring
             public int TotalTasks { get; set; }
             public int PendingActivities { get; set; }
             public decimal AvgScore { get; set; }
+            public int WorkloadPoints { get; set; }
+            public string WorkloadLevel { get; set; } = "Light";
+        }
+
+        public class TechnicianWorkloadItem
+        {
+            public int EmployeeId { get; set; }
+            public string FullName { get; set; } = string.Empty;
+            public string DepartmentName { get; set; } = string.Empty;
+            public int ActiveTickets { get; set; }
+            public int OverdueTickets { get; set; }
+            public int CompletedTickets { get; set; }
+            public int TotalTickets { get; set; }
             public int WorkloadPoints { get; set; }
             public string WorkloadLevel { get; set; } = "Light";
         }

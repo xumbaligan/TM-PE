@@ -60,6 +60,12 @@ namespace TM_PE.Pages.Manager.JobTickets
             // so their built-in validation attributes are skipped in favor of manual checks below.
             ModelState.Remove("JobTicket.FiberPlan");
             ModelState.Remove("JobTicket.Description");
+            // Client Full Name / Primary / Secondary Number are only collected for
+            // non-Maintenance jobs, so their built-in [Required] attributes are skipped
+            // in favor of the manual, JobType-aware checks below.
+            ModelState.Remove("JobTicket.ClientFullName");
+            ModelState.Remove("JobTicket.PrimaryNumber");
+            ModelState.Remove("JobTicket.SecondaryNumber");
 
             var ticket = await _context.JobTickets.FirstOrDefaultAsync(t => t.JobTicketID == JobTicket.JobTicketID);
 
@@ -85,12 +91,36 @@ namespace TM_PE.Pages.Manager.JobTickets
 
                 JobTicket.Description = null;
             }
-            else if (JobTicket.JobType == JobTypes.Repair || JobTicket.JobType == JobTypes.Maintenance)
+            else if (JobTicket.JobType == JobTypes.Repair || JobTicket.JobType == JobTypes.Maintenance || JobTicket.JobType == JobTypes.Inspection)
             {
                 if (string.IsNullOrWhiteSpace(JobTicket.Description))
                     ModelState.AddModelError("JobTicket.Description", "Please provide a description.");
 
                 JobTicket.FiberPlan = null;
+            }
+
+            // Maintenance jobs don't collect client contact info — clear whatever was
+            // submitted instead of requiring it. Every other job type still requires
+            // Client Full Name and Primary Number.
+            if (JobTicket.JobType == JobTypes.Maintenance)
+            {
+                JobTicket.ClientFullName = string.Empty;
+                JobTicket.PrimaryNumber = string.Empty;
+                JobTicket.SecondaryNumber = null;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(JobTicket.ClientFullName))
+                    ModelState.AddModelError("JobTicket.ClientFullName", "Client full name is required.");
+
+                if (string.IsNullOrWhiteSpace(JobTicket.PrimaryNumber))
+                    ModelState.AddModelError("JobTicket.PrimaryNumber", "Primary number is required.");
+                else if (!System.Text.RegularExpressions.Regex.IsMatch(JobTicket.PrimaryNumber, @"^[0-9+\-\s()]{7,20}$"))
+                    ModelState.AddModelError("JobTicket.PrimaryNumber", "Enter a valid contact number.");
+
+                if (!string.IsNullOrWhiteSpace(JobTicket.SecondaryNumber) &&
+                    !System.Text.RegularExpressions.Regex.IsMatch(JobTicket.SecondaryNumber, @"^[0-9+\-\s()]{7,20}$"))
+                    ModelState.AddModelError("JobTicket.SecondaryNumber", "Enter a valid contact number.");
             }
 
             if (!ModelState.IsValid)
