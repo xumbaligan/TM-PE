@@ -55,6 +55,12 @@ namespace TM_PE.Pages.Manager.OfficeTask
                 return NotFound();
             }
 
+            // Completed tasks (every activity Approved) are locked — no further edits allowed.
+            if (officeTask.Status == "Completed")
+            {
+                return RedirectToPage("Details", new { id });
+            }
+
             OfficeTask = officeTask;
 
             EmployeeList = await _context.Employees
@@ -112,6 +118,13 @@ namespace TM_PE.Pages.Manager.OfficeTask
             if (task == null)
             {
                 return NotFound();
+            }
+
+            // Completed tasks are locked — no further edits allowed, even if this
+            // page was submitted directly.
+            if (task.Status == "Completed")
+            {
+                return RedirectToPage("Details", new { id = task.OfficeTaskID });
             }
 
             // Update core fields (TaskNumber intentionally left untouched)

@@ -11,6 +11,23 @@
     </a>
 </div>
 
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-8">
+        <input class="form-control" name="search" id="liveSearch"
+               value="@Model.Search" placeholder="Search by leader, job type, ticket #, or client..." />
+    </div>
+    <div class="col-md-4">
+        <select class="form-select" name="status" id="liveStatus">
+            <option value="">All Statuses</option>
+            <option value="Pending" selected="@(Model.StatusFilter == "Pending")">Pending</option>
+            <option value="In Progress" selected="@(Model.StatusFilter == "In Progress")">In Progress</option>
+            <option value="Completed" selected="@(Model.StatusFilter == "Completed")">Completed</option>
+            <option value="Cancelled" selected="@(Model.StatusFilter == "Cancelled")">Cancelled</option>
+            <option value="Approved" selected="@(Model.StatusFilter == "Approved")">Approved</option>
+        </select>
+    </div>
+</form>
+
 <div class="table-responsive card">
     <table class="table align-middle table-hover mb-0">
         <thead>
@@ -27,14 +44,24 @@
         <tbody>
             @if (!Model.JobTicket.Any())
             {
-                <tr>
+                <tr id="emptyRow">
                     <td colspan="7" class="text-center text-muted py-4">No job tickets yet.</td>
+                </tr>
+            }
+            else
+            {
+                <tr id="emptyRow" style="display:none;">
+                    <td colspan="7" class="text-center text-muted py-4">No job tickets found</td>
                 </tr>
             }
             @foreach (var item in Model.JobTicket)
             {
                 var leader = item.Assignments?.FirstOrDefault(a => a.IsLeader)?.Employee;
-                <tr>
+                <tr data-leader="@(leader?.FullName.ToLower() ?? "")"
+                    data-jobtype="@item.JobType.ToLower()"
+                    data-ticketid="@item.TicketNumber.ToLower()"
+                    data-client="@item.ClientFullName.ToLower()"
+                    data-status="@item.Status.ToLower()">
                     <td class="text-muted">@item.TicketNumber</td>
                     <td class="fw-semibold">@item.JobType</td>
                     <td>@item.ClientFullName</td>
@@ -69,8 +96,7 @@
                         }
                         else
                         {
-                            <span class="btn btn-sm btn-link text-muted p-1" title="Approved tickets can't be edited" style="cursor:not-allowed;">
-                                <i class="bi bi-lock"></i>
+                            <span class="btn btn-sm btn-link text-muted p-1">
                             </span>
                         }
                     </td>
@@ -193,4 +219,45 @@
             </div>
         </div>
     </div>
+}
+
+@section Scripts {
+    <script>
+        const searchInput = document.getElementById('liveSearch');
+        const statusSelect = document.getElementById('liveStatus');
+        const rows = document.querySelectorAll('tbody tr[data-ticketid]');
+
+        function filterTable() {
+            const searchVal = searchInput.value.toLowerCase().trim();
+            const statusVal = statusSelect.value.toLowerCase().trim();
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const leader = row.dataset.leader || '';
+                const jobType = row.dataset.jobtype || '';
+                const ticketId = row.dataset.ticketid || '';
+                const client = row.dataset.client || '';
+                const status = row.dataset.status || '';
+
+                const matchesSearch = leader.includes(searchVal) || jobType.includes(searchVal)
+                    || ticketId.includes(searchVal) || client.includes(searchVal);
+                const matchesStatus = statusVal === '' || status === statusVal;
+
+                if (matchesSearch && matchesStatus) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            const emptyRow = document.getElementById('emptyRow');
+            if (emptyRow) {
+                emptyRow.style.display = visibleCount === 0 ? '' : 'none';
+            }
+        }
+
+        searchInput.addEventListener('input', filterTable);
+        statusSelect.addEventListener('change', filterTable);
+    </script>
 }

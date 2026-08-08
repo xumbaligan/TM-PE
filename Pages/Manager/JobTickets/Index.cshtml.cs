@@ -16,6 +16,11 @@ namespace TM_PE.Pages.Manager.JobTickets
 
         public IList<Model.JobTicket> JobTicket { get; set; } = default!;
 
+        // Filters are applied client-side (see Index.cshtml script), these just
+        // keep the form fields populated when the page reloads.
+        [BindProperty(SupportsGet = true)] public string? Search { get; set; }
+        [BindProperty(Name = "status", SupportsGet = true)] public string? StatusFilter { get; set; }
+
         public async Task OnGetAsync()
         {
             JobTicket = await _context.JobTickets

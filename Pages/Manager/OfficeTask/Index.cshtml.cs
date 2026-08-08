@@ -17,6 +17,11 @@ namespace TM_PE.Pages.Manager.OfficeTask
 
         public IList<Model.OfficeTask> OfficeTask { get; set; } = default!;
 
+        // Filters are applied client-side (see Index.cshtml script), these just
+        // keep the form fields populated when the page reloads.
+        [BindProperty(SupportsGet = true)] public string? Search { get; set; }
+        [BindProperty(Name = "status", SupportsGet = true)] public string? StatusFilter { get; set; }
+
         public async Task OnGetAsync()
         {
             OfficeTask = await _context.OfficeTasks
