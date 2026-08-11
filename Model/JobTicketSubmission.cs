@@ -27,9 +27,6 @@ namespace TM_PE.Model
 
         public string FilePath { get; set; } = string.Empty;
 
-        [StringLength(300)]
-        public string? Caption { get; set; }
-
         public DateTime DateSubmitted { get; set; } = DateTime.Now;
     }
 }

@@ -6,14 +6,12 @@
     Layout = "_Layout";
 }
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
 <div class="card shadow-sm border-0">
     <div class="card-body p-4">
 
         <h3 class="fw-bold">Job Ticket Form</h3>
         <p class="text-muted">
-            Fill out the job details, pin the installation location, and assign field technicians.
+            Fill out the job details, enter the installation location, and assign field technicians.
         </p>
 
         <form method="post" id="ticketForm">
@@ -54,7 +52,7 @@
                     Job Type <span class="text-danger">*</span>
                 </label>
 
-                <select asp-for="JobTicket.JobType" id="jobTypeSelect" class="form-select">
+                <select asp-for="JobTicket.JobType" id="jobTypeSelect" class="form-select" required>
                     <option value="">Select a job type</option>
                     @foreach (var type in Model.JobTypeOptions)
                     {
@@ -75,7 +73,8 @@
                     <input asp-for="JobTicket.ClientFullName"
                            id="clientFullNameInput"
                            class="form-control"
-                           placeholder="e.g. Juan Dela Cruz" />
+                           placeholder="e.g. Juan Dela Cruz"
+                           required />
 
                     <span asp-validation-for="JobTicket.ClientFullName" class="text-danger"></span>
                 </div>
@@ -88,7 +87,8 @@
                     <input asp-for="JobTicket.PrimaryNumber"
                            id="primaryNumberInput"
                            class="form-control"
-                           placeholder="09xx xxx xxxx" />
+                           placeholder="09xx xxx xxxx"
+                           required />
 
                     <span asp-validation-for="JobTicket.PrimaryNumber" class="text-danger"></span>
                 </div>
@@ -149,42 +149,36 @@
                            type="date"
                            min="@DateTime.Now.ToString("yyyy-MM-dd")"
                            value="@Model.JobTicket.ServiceDate.ToString("yyyy-MM-dd")"
-                           class="form-control" />
+                           class="form-control"
+                           required />
 
                     <span asp-validation-for="JobTicket.ServiceDate" class="text-danger"></span>
                 </div>
             </div>
 
-            <!-- Location Map -->
+            <!-- Location -->
             <div class="card mb-3">
                 <div class="card-body">
                     <h5 class="fw-semibold mb-2">
                         📍 Job Location <span class="text-danger">*</span>
                     </h5>
-                    <p class="text-muted small mb-2">Search for an address or click on the map to pin the exact job site. The address below fills in automatically.</p>
 
-                    <div class="input-group mb-2">
-                        <input type="text" id="locationSearch" class="form-control" placeholder="Search for an address..." autocomplete="off" />
-                        <button type="button" id="locationSearchBtn" class="btn btn-outline-secondary">
-                            <i class="bi bi-search"></i> Search
-                        </button>
-                    </div>
-                    <div id="locationSearchResults" class="list-group mb-2" style="max-height:180px; overflow-y:auto;"></div>
-
-                    <div id="locationMap" style="height:320px; border-radius:8px;"></div>
-
-                    <div class="mt-3">
-                        <label class="form-label fw-semibold">Exact Address</label>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Address</label>
                         <input asp-for="JobTicket.LocationAddress"
-                               id="locationAddress"
                                class="form-control"
-                               placeholder="Search or pin a location on the map above"
-                               readonly />
+                               placeholder="Enter the job site address"
+                               required />
                         <span asp-validation-for="JobTicket.LocationAddress" class="text-danger"></span>
                     </div>
 
-                    <input type="hidden" asp-for="JobTicket.Latitude" id="locationLat" />
-                    <input type="hidden" asp-for="JobTicket.Longitude" id="locationLng" />
+                    <div>
+                        <label class="form-label fw-semibold">Nearest Landmark</label>
+                        <input asp-for="JobTicket.NearestLandmark"
+                               class="form-control"
+                               placeholder="e.g. Near the barangay hall" />
+                        <span asp-validation-for="JobTicket.NearestLandmark" class="text-danger"></span>
+                    </div>
                 </div>
             </div>
 
@@ -195,7 +189,7 @@
                     <h5 class="fw-semibold mb-1">
                         👷 Add Assignees <span class="text-danger">*</span>
                     </h5>
-                    <p class="text-muted small mb-3">Only Field Technicians can be assigned to a job ticket. Pick one to be the leader.</p>
+                    <p class="text-muted small mb-3">Only Field Technicians can be assigned to a job ticket. Assign at least 2, and pick one to be the leader.</p>
 
                     <div class="row">
                         <div class="col-md-10">
@@ -244,103 +238,8 @@
         await Html.RenderPartialAsync("_ValidationScriptsPartial");
     }
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <script>
         (function () {
-            // ---------------- MAP ----------------
-            const defaultLatLng = [10.2764,123.8497]; // Bulacao, PH fallback center
-            const map = L.map('locationMap').setView(defaultLatLng, 13);
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
-
-            let marker = null;
-            const latInput = document.getElementById('locationLat');
-            const lngInput = document.getElementById('locationLng');
-            const addressInput = document.getElementById('locationAddress');
-
-            async function reverseGeocode(lat, lng) {
-                addressInput.value = 'Looking up address...';
-                try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-                    const data = await res.json();
-                    addressInput.value = data && data.display_name ? data.display_name : `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-                } catch (err) {
-                    addressInput.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-                }
-            }
-
-            function setPin(lat, lng) {
-                if (marker) {
-                    marker.setLatLng([lat, lng]);
-                } else {
-                    marker = L.marker([lat, lng], { draggable: true }).addTo(map);
-                    marker.on('dragend', function () {
-                        const pos = marker.getLatLng();
-                        latInput.value = pos.lat;
-                        lngInput.value = pos.lng;
-                        reverseGeocode(pos.lat, pos.lng);
-                    });
-                }
-                latInput.value = lat;
-                lngInput.value = lng;
-                reverseGeocode(lat, lng);
-            }
-
-            map.on('click', function (e) {
-                setPin(e.latlng.lat, e.latlng.lng);
-            });
-
-            // ---------------- ADDRESS SEARCH ----------------
-            const locationSearch = document.getElementById('locationSearch');
-            const locationSearchBtn = document.getElementById('locationSearchBtn');
-            const locationSearchResults = document.getElementById('locationSearchResults');
-
-            async function searchAddress() {
-                const query = locationSearch.value.trim();
-                locationSearchResults.innerHTML = '';
-                if (!query) return;
-
-                try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}`);
-                    const results = await res.json();
-
-                    if (!results || results.length === 0) {
-                        locationSearchResults.innerHTML = '<div class="list-group-item small text-muted">No matches found.</div>';
-                        return;
-                    }
-
-                    results.forEach(function (r) {
-                        const item = document.createElement('button');
-                        item.type = 'button';
-                        item.className = 'list-group-item list-group-item-action small';
-                        item.textContent = r.display_name;
-                        item.addEventListener('click', function () {
-                            const lat = parseFloat(r.lat);
-                            const lng = parseFloat(r.lon);
-                            map.setView([lat, lng], 17);
-                            setPin(lat, lng);
-                            locationSearchResults.innerHTML = '';
-                            locationSearch.value = r.display_name;
-                        });
-                        locationSearchResults.appendChild(item);
-                    });
-                } catch (err) {
-                    locationSearchResults.innerHTML = '<div class="list-group-item small text-danger">Search failed. Please try again.</div>';
-                }
-            }
-
-            locationSearchBtn.addEventListener('click', searchAddress);
-            locationSearch.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    searchAddress();
-                }
-            });
-
             // ---------------- JOB TYPE TOGGLE ----------------
             const jobTypeSelect = document.getElementById('jobTypeSelect');
             const fiberPlanGroup = document.getElementById('fiberPlanGroup');
@@ -418,6 +317,38 @@
             const addedEmployees = new Map();
             let leaderId = null;
 
+            // Once a technician is selected, their option disappears from the
+            // dropdown; removing them from the list restores it in its original
+            // (alphabetical) position.
+            const originalOptions = Array.from(employeeSelect.options).filter(o => o.value !== '');
+            const optionMap = new Map();
+            originalOptions.forEach(o => optionMap.set(o.value, o));
+
+            function hideOptionFromDropdown(id) {
+                const opt = optionMap.get(id);
+                if (opt && opt.parentElement === employeeSelect) {
+                    employeeSelect.removeChild(opt);
+                }
+            }
+
+            function restoreOptionToDropdown(id) {
+                const opt = optionMap.get(id);
+                if (!opt) return;
+                const idx = originalOptions.indexOf(opt);
+                let inserted = false;
+                for (let i = idx + 1; i < originalOptions.length; i++) {
+                    const nextOpt = originalOptions[i];
+                    if (nextOpt.parentElement === employeeSelect) {
+                        employeeSelect.insertBefore(opt, nextOpt);
+                        inserted = true;
+                        break;
+                    }
+                }
+                if (!inserted) {
+                    employeeSelect.appendChild(opt);
+                }
+            }
+
             function renderEmployeeRow(id, name) {
                 const row = document.createElement('div');
                 row.className = 'd-flex align-items-center gap-2 border rounded p-2';
@@ -427,7 +358,7 @@
                         <input class="form-check-input" type="radio" name="leaderRadio" id="leaderRadio-${id}" ${leaderId === id ? 'checked' : ''}>
                         <label class="form-check-label small" for="leaderRadio-${id}">Leader</label>
                     </div>
-                    <span class="flex-grow-1">${name}</span>
+                    <span class="flex-grow-1" id="empName-${id}"></span>
                     <span class="text-danger" style="cursor:pointer;" title="Remove">&times;</span>
                     <input type="hidden" name="SelectedEmployeeIds" value="${id}" />
                 `;
@@ -435,11 +366,13 @@
                 row.querySelector('input[type=radio]').addEventListener('change', function () {
                     leaderId = id;
                     document.getElementById('leaderEmployeeIdInput').value = id;
+                    refreshLeaderTags();
                 });
 
                 row.querySelector('.text-danger').addEventListener('click', function () {
                     addedEmployees.delete(id);
                     row.remove();
+                    restoreOptionToDropdown(id);
                     if (leaderId === id) {
                         leaderId = null;
                         document.getElementById('leaderEmployeeIdInput').value = '';
@@ -452,12 +385,26 @@
                             if (nextRadio) nextRadio.checked = true;
                         }
                     }
+                    refreshLeaderTags();
                     if (addedEmployees.size === 0) {
                         noEmployeesMsg.style.display = '';
                     }
                 });
 
                 selectedEmployeesDiv.appendChild(row);
+                refreshLeaderTags();
+            }
+
+            // Only the currently selected/assigned leader gets the "Leader" tag
+            // next to their name — everyone else just shows their plain name.
+            function refreshLeaderTags() {
+                addedEmployees.forEach(function (name, id) {
+                    const nameSpan = document.getElementById(`empName-${id}`);
+                    if (!nameSpan) return;
+                    nameSpan.innerHTML = (id === leaderId)
+                        ? `${name} <span class="badge bg-primary ms-1">Leader</span>`
+                        : name;
+                });
             }
 
             // Hidden input carrying the chosen leader's EmployeeId
@@ -479,26 +426,23 @@
                 noEmployeesMsg.style.display = 'none';
 
                 renderEmployeeRow(id, name);
+                hideOptionFromDropdown(id);
 
                 // First technician added is auto-selected as leader
                 if (addedEmployees.size === 1) {
                     leaderId = id;
                     leaderHidden.value = id;
                     document.getElementById(`leaderRadio-${id}`).checked = true;
+                    refreshLeaderTags();
                 }
 
                 employeeSelect.value = '';
             });
 
             document.getElementById('ticketForm').addEventListener('submit', function (e) {
-                if (!latInput.value || !lngInput.value) {
+                if (addedEmployees.size < 2) {
                     e.preventDefault();
-                    alert('Please pin the job location on the map.');
-                    return;
-                }
-                if (addedEmployees.size === 0) {
-                    e.preventDefault();
-                    alert('Please add at least one field technician.');
+                    alert('Please assign at least 2 field technicians.');
                     return;
                 }
                 if (!leaderHidden.value) {

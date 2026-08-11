@@ -39,8 +39,8 @@ namespace TM_PE.Pages.Manager.JobTickets
                 return NotFound();
             }
 
-            // Approved tickets are locked — no further edits allowed.
-            if (jobTicket.Status == JobTicketStatuses.Approved)
+            // Completed (and Closed) tickets are locked — no further edits allowed.
+            if (jobTicket.IsLockedFromEditing)
             {
                 return RedirectToPage("Details", new { id });
             }
@@ -74,9 +74,9 @@ namespace TM_PE.Pages.Manager.JobTickets
                 return NotFound();
             }
 
-            // Approved tickets are locked — no further edits allowed, even if this
-            // page was submitted directly.
-            if (ticket.Status == JobTicketStatuses.Approved)
+            // Completed (and Closed) tickets are locked — no further edits allowed,
+            // even if this page was submitted directly.
+            if (ticket.IsLockedFromEditing)
             {
                 return RedirectToPage("Details", new { id = ticket.JobTicketID });
             }
@@ -150,8 +150,7 @@ namespace TM_PE.Pages.Manager.JobTickets
             ticket.Description = JobTicket.Description;
             ticket.ServiceDate = JobTicket.ServiceDate;
             ticket.LocationAddress = JobTicket.LocationAddress;
-            ticket.Latitude = JobTicket.Latitude;
-            ticket.Longitude = JobTicket.Longitude;
+            ticket.NearestLandmark = JobTicket.NearestLandmark;
             ticket.Status = JobTicket.Status;
 
             await _context.SaveChangesAsync();

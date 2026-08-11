@@ -20,17 +20,17 @@ namespace TM_PE.Model
         public static readonly string[] Allowed = { Installation, Repair, Maintenance, Inspection };
     }
 
-    // Job ticket lifecycle. "Approved" is a manager-only, terminal state — once a
-    // ticket is Approved it is locked from further edits.
+    // Job ticket lifecycle. "Closed" is a manager-only, terminal state — once a
+    // ticket is Closed it is locked from further edits.
     public static class JobTicketStatuses
     {
         public const string Pending = "Pending";
         public const string InProgress = "In Progress";
         public const string Completed = "Completed";
         public const string Cancelled = "Cancelled";
-        public const string Approved = "Approved";
+        public const string Closed = "Closed";
 
-        public static readonly string[] Allowed = { Pending, InProgress, Completed, Cancelled, Approved };
+        public static readonly string[] Allowed = { Pending, InProgress, Completed, Cancelled, Closed };
     }
 
     [Table("tbl_jobticket")]
@@ -74,23 +74,33 @@ namespace TM_PE.Model
         [Required(ErrorMessage = "Date is required.")]
         public DateTime ServiceDate { get; set; } = DateTime.Now;
 
-        // Auto-filled from the pinned map location (reverse-geocoded address)
-        [Required(ErrorMessage = "Please pin the job location on the map.")]
+        // Free-text address entered directly by the manager.
+        [Required(ErrorMessage = "Location address is required.")]
         [StringLength(300)]
         public string LocationAddress { get; set; } = string.Empty;
 
-        [Column(TypeName = "decimal(9,6)")]
-        public decimal Latitude { get; set; }
-
-        [Column(TypeName = "decimal(9,6)")]
-        public decimal Longitude { get; set; }
+        // Free-text nearby landmark to help the field technician find the site.
+        [StringLength(300)]
+        public string? NearestLandmark { get; set; }
 
         // Always starts as "Pending" on creation; never exposed on the Create form.
-        // Valid values: Pending, In Progress, Completed, Cancelled, Approved
+        // Valid values: Pending, In Progress, Completed, Cancelled, Closed
         public string Status { get; set; } = JobTicketStatuses.Pending;
 
+        // Free-text notes from the field technician leader about the current status.
+        // Set alongside Status via the leader's consolidated Save action.
+        [StringLength(500)]
+        public string? Remarks { get; set; }
+
         [NotMapped]
-        public bool IsApproved => Status == JobTicketStatuses.Approved;
+        public bool IsClosed => Status == JobTicketStatuses.Closed;
+
+        // Once the field technician leader marks the job Completed (or the manager
+        // later Closes it), the ticket is locked from further edits/status changes
+        // by anyone — field technician or manager.
+        [NotMapped]
+        public bool IsLockedFromEditing =>
+            Status == JobTicketStatuses.Completed || Status == JobTicketStatuses.Closed;
 
         // Label shown above the ServiceDate field/value, based on JobType.
         [NotMapped]

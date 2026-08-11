@@ -49,27 +49,15 @@ namespace TM_PE.Pages.Manager.JobTickets
             return Page();
         }
 
-        // Manager can close out a job ticket once work is finished.
+        // Manager closes out a job ticket once it has been marked Completed by the
+        // field technician leader. Closing is terminal — once Closed, the ticket is
+        // locked from further edits. Cannot close while still Pending or In Progress.
         public async Task<IActionResult> OnPostCloseAsync(int id)
-        {
-            var ticket = await _context.JobTickets.FindAsync(id);
-            if (ticket != null && ticket.Status != JobTicketStatuses.Completed)
-            {
-                ticket.Status = JobTicketStatuses.Completed;
-                await _context.SaveChangesAsync();
-            }
-
-            return RedirectToPage(new { id });
-        }
-
-        // Manager approves a completed job ticket. Once approved, the ticket is
-        // locked from further edits.
-        public async Task<IActionResult> OnPostApproveAsync(int id)
         {
             var ticket = await _context.JobTickets.FindAsync(id);
             if (ticket != null && ticket.Status == JobTicketStatuses.Completed)
             {
-                ticket.Status = JobTicketStatuses.Approved;
+                ticket.Status = JobTicketStatuses.Closed;
                 await _context.SaveChangesAsync();
             }
 

@@ -88,9 +88,10 @@ namespace TM_PE.Pages.FieldTechnician
         // ---------------------------------------------------------------
         // FILE SUBMISSION (leader only)
         // ---------------------------------------------------------------
-        public async Task<IActionResult> OnPostUploadSubmissionAsync(int jobTicketId, IFormFile submissionFile, string? caption)
+        public async Task<IActionResult> OnPostUploadSubmissionAsync(int jobTicketId, IFormFile submissionFile, string status)
         {
             var employeeId = HttpContext.Session.GetInt32("CurrentFieldTechnicianId");
+
             if (employeeId == null)
             {
                 return RedirectToPage("./Select");
@@ -105,7 +106,9 @@ namespace TM_PE.Pages.FieldTechnician
                 return NotFound();
             }
 
-            var myAssignment = ticket.Assignments.FirstOrDefault(a => a.EmployeeID == employeeId.Value);
+            var myAssignment = ticket.Assignments
+                .FirstOrDefault(a => a.EmployeeID == employeeId.Value);
+
             if (myAssignment == null)
             {
                 ErrorMessage = "You are not assigned to that job order.";
@@ -114,13 +117,34 @@ namespace TM_PE.Pages.FieldTechnician
 
             if (!myAssignment.IsLeader)
             {
-                ErrorMessage = "Only the team leader can upload files for this job order.";
+                ErrorMessage =
+                    "Only the team leader can upload files for this job order.";
+
                 return RedirectToPage(new { id = jobTicketId });
             }
 
-            if (ticket.Status == JobTicketStatuses.Approved)
+            if (ticket.IsLockedFromEditing)
             {
-                ErrorMessage = "This job order has been approved and can no longer be updated.";
+                ErrorMessage = ticket.Status == JobTicketStatuses.Closed
+                    ? "This job order has been closed and can no longer be updated."
+                    : "This job order has been marked Completed and can no longer be updated.";
+
+                return RedirectToPage(new { id = jobTicketId });
+            }
+
+            // Validate the status coming from the page
+            if (!StatusOptions.Contains(status))
+            {
+                ErrorMessage = "Invalid status.";
+                return RedirectToPage(new { id = jobTicketId });
+            }
+
+            // Do not allow uploading while Pending
+            if (status == JobTicketStatuses.Pending)
+            {
+                ErrorMessage =
+                    "Please change the status to In Progress before uploading a photo or file.";
+
                 return RedirectToPage(new { id = jobTicketId });
             }
 
@@ -130,10 +154,20 @@ namespace TM_PE.Pages.FieldTechnician
                 return RedirectToPage(new { id = jobTicketId });
             }
 
-            var uploadsRoot = Path.Combine(_env.WebRootPath, "uploads", "jobticket-submissions");
+            // IMPORTANT:
+            // Save the currently selected status before saving the file.
+            ticket.Status = status;
+
+            var uploadsRoot = Path.Combine(
+                _env.WebRootPath,
+                "uploads",
+                "jobticket-submissions");
+
             Directory.CreateDirectory(uploadsRoot);
 
-            var safeFileName = $"{jobTicketId}_{Guid.NewGuid():N}_{Path.GetFileName(submissionFile.FileName)}";
+            var safeFileName =
+                $"{jobTicketId}_{Guid.NewGuid():N}_{Path.GetFileName(submissionFile.FileName)}";
+
             var fullPath = Path.Combine(uploadsRoot, safeFileName);
 
             using (var stream = new FileStream(fullPath, FileMode.Create))
@@ -141,7 +175,11 @@ namespace TM_PE.Pages.FieldTechnician
                 await submissionFile.CopyToAsync(stream);
             }
 
-            var relativePath = Path.Combine("uploads", "jobticket-submissions", safeFileName).Replace("\\", "/");
+            var relativePath = Path.Combine(
+                "uploads",
+                "jobticket-submissions",
+                safeFileName)
+                .Replace("\\", "/");
 
             _context.JobTicketSubmissions.Add(new JobTicketSubmission
             {
@@ -149,7 +187,6 @@ namespace TM_PE.Pages.FieldTechnician
                 EmployeeID = employeeId.Value,
                 FileName = submissionFile.FileName,
                 FilePath = relativePath,
-                Caption = string.IsNullOrWhiteSpace(caption) ? null : caption.Trim(),
                 DateSubmitted = DateTime.Now
             });
 
@@ -159,9 +196,9 @@ namespace TM_PE.Pages.FieldTechnician
         }
 
         // ---------------------------------------------------------------
-        // STATUS CHANGE (leader only)
+        // REMOVE A SUBMITTED FILE (leader only)
         // ---------------------------------------------------------------
-        public async Task<IActionResult> OnPostUpdateStatusAsync(int jobTicketId, string status)
+        public async Task<IActionResult> OnPostDeleteSubmissionAsync(int jobTicketId, int submissionId)
         {
             var employeeId = HttpContext.Session.GetInt32("CurrentFieldTechnicianId");
             if (employeeId == null)
@@ -187,26 +224,161 @@ namespace TM_PE.Pages.FieldTechnician
 
             if (!myAssignment.IsLeader)
             {
-                ErrorMessage = "Only the team leader can change the status of this job order.";
+                ErrorMessage = "Only the team leader can remove files for this job order.";
                 return RedirectToPage(new { id = jobTicketId });
             }
 
-            if (ticket.Status == JobTicketStatuses.Approved)
+            if (ticket.IsLockedFromEditing)
             {
-                ErrorMessage = "This job order has been approved and can no longer be updated.";
+                ErrorMessage = ticket.Status == JobTicketStatuses.Closed
+                    ? "This job order has been closed and can no longer be updated."
+                    : "This job order has been marked Completed and can no longer be updated.";
                 return RedirectToPage(new { id = jobTicketId });
             }
 
+            var submission = await _context.JobTicketSubmissions
+                .FirstOrDefaultAsync(s => s.JobTicketSubmissionID == submissionId && s.JobTicketID == jobTicketId);
+
+            if (submission != null)
+            {
+                var fullPath = Path.Combine(_env.WebRootPath, submission.FilePath.Replace("/", Path.DirectorySeparatorChar.ToString()));
+                if (System.IO.File.Exists(fullPath))
+                {
+                    System.IO.File.Delete(fullPath);
+                }
+
+                _context.JobTicketSubmissions.Remove(submission);
+                await _context.SaveChangesAsync();
+            }
+
+            return RedirectToPage(new { id = jobTicketId });
+        }
+
+        // ---------------------------------------------------------------
+        // STATUS + REMARKS (leader only) ? consolidated Save; nothing is
+        // persisted until the leader presses Save.
+        // ---------------------------------------------------------------
+        public async Task<IActionResult> OnPostSaveAsync(int jobTicketId, string status, string? remarks)
+        {
+            var employeeId = HttpContext.Session.GetInt32("CurrentFieldTechnicianId");
+
+            if (employeeId == null)
+            {
+                return RedirectToPage("./Select");
+            }
+
+            var ticket = await _context.JobTickets
+                .Include(t => t.Assignments)
+                .Include(t => t.Submissions)
+                .FirstOrDefaultAsync(t => t.JobTicketID == jobTicketId);
+
+            if (ticket == null)
+            {
+                return NotFound();
+            }
+
+            var myAssignment = ticket.Assignments
+                .FirstOrDefault(a => a.EmployeeID == employeeId.Value);
+
+            if (myAssignment == null)
+            {
+                ErrorMessage = "You are not assigned to that job order.";
+                return RedirectToPage("./Index");
+            }
+
+            // Only the leader can change the status
+            if (!myAssignment.IsLeader)
+            {
+                ErrorMessage =
+                    "Only the team leader can change the status of this job order.";
+
+                return RedirectToPage(new { id = jobTicketId });
+            }
+
+            // Completed (and Closed) tickets cannot be changed further
+            if (ticket.IsLockedFromEditing)
+            {
+                ErrorMessage = ticket.Status == JobTicketStatuses.Closed
+                    ? "This job order has been closed and can no longer be updated."
+                    : "This job order has been marked Completed and can no longer be updated.";
+
+                return RedirectToPage(new { id = jobTicketId });
+            }
+            // Validate status
             if (!StatusOptions.Contains(status))
             {
                 ErrorMessage = "Invalid status.";
                 return RedirectToPage(new { id = jobTicketId });
             }
 
+            // Check whether this ticket already has uploaded files
+            bool hasUploadedFile = ticket.Submissions != null &&
+                                   ticket.Submissions.Any();
+
+            // ============================================================
+            // RULE 1:
+            // If a file already exists, the ticket CANNOT return to Pending
+            // ============================================================
+            if (status == JobTicketStatuses.Pending && hasUploadedFile)
+            {
+                ErrorMessage =
+                    "This job order cannot be changed back to Pending because a photo or file has already been uploaded.";
+
+
+                return RedirectToPage(new { id = jobTicketId });
+            }
+
+            // ============================================================
+            // RULE 2:
+            // In Progress requires at least one uploaded file
+            //
+            // NOTE:
+            // If you want the technician to be able to select
+            // In Progress first and then upload the file, REMOVE this
+            // validation for In Progress.
+            // ============================================================
+
+            if (status == JobTicketStatuses.Completed && !hasUploadedFile)
+            {
+                ErrorMessage =
+                    "You must upload at least one photo or file before changing the job order to Completed.";
+
+                return RedirectToPage(new { id = jobTicketId });
+            }
+
+            if (status == JobTicketStatuses.InProgress && !hasUploadedFile)
+            {
+                ErrorMessage =
+                    "You must upload at least one photo or file for proof in your progress.";
+
+                return RedirectToPage(new { id = jobTicketId });
+            }
+            // ============================================================
+            // RULE 3:
+            // Cancelled requires remarks
+            // ============================================================
+            if (status == JobTicketStatuses.Cancelled &&
+                string.IsNullOrWhiteSpace(remarks))
+            {
+                ErrorMessage =
+                    "Please provide a reason in the remarks before cancelling this job order.";
+
+                return RedirectToPage(new { id = jobTicketId });
+            }
+
+            // ============================================================
+            // SAVE STATUS
+            // ============================================================
+
             ticket.Status = status;
+
+            ticket.Remarks = string.IsNullOrWhiteSpace(remarks)
+                ? null
+                : remarks.Trim();
+
             await _context.SaveChangesAsync();
 
-            return RedirectToPage(new { id = jobTicketId });
+            return RedirectToPage("./Index");
         }
 
         public async Task<IActionResult> OnGetDownloadAsync(int submissionId)
