@@ -109,13 +109,13 @@
 
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Address</label>
-                        <input asp-for="JobTicket.LocationAddress" class="form-control" placeholder="Enter the job site address" />
+                        <input asp-for="JobTicket.LocationAddress" id="locationAddressInput" class="form-control" placeholder="Enter the job site address" />
                         <span asp-validation-for="JobTicket.LocationAddress" class="text-danger"></span>
                     </div>
 
                     <div>
                         <label class="form-label fw-semibold">Nearest Landmark</label>
-                        <input asp-for="JobTicket.NearestLandmark" class="form-control" placeholder="e.g. Near the barangay hall" />
+                        <input asp-for="JobTicket.NearestLandmark" id="nearestLandmarkInput" class="form-control" placeholder="e.g. Near the barangay hall" />
                         <span asp-validation-for="JobTicket.NearestLandmark" class="text-danger"></span>
                     </div>
                 </div>
@@ -160,8 +160,14 @@
         await Html.RenderPartialAsync("_ValidationScriptsPartial");
     }
 
+    <script src="~/js/address-autocomplete.js"></script>
     <script>
         (function () {
+            // ---------------- ADDRESS AUTOCOMPLETE ----------------
+            // Biased toward Cebu/Philippines; users can still search anywhere.
+            initAddressAutocomplete(document.getElementById('locationAddressInput'), { lat: 10.3157, lon: 123.8854 });
+            initAddressAutocomplete(document.getElementById('nearestLandmarkInput'), { lat: 10.3157, lon: 123.8854 });
+
             // ---------------- JOB TYPE TOGGLE ----------------
             const jobTypeSelect = document.getElementById('jobTypeSelect');
             const fiberPlanGroup = document.getElementById('fiberPlanGroup');
