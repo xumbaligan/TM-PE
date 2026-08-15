@@ -9,6 +9,7 @@
         "Completed" => "bg-success-subtle text-success",
         "In Progress" => "bg-info-subtle text-info",
         "Cancelled" => "bg-danger-subtle text-danger",
+        "Rescheduled" => "bg-warning-subtle text-warning-emphasis",
         _ => "bg-secondary-subtle text-secondary"
     };
 }
@@ -136,6 +137,11 @@
                         <select id="statusSelect" name="status" class="form-select">
                             @foreach (var opt in TM_PE.Pages.FieldTechnician.DetailsModel.StatusOptions)
                             {
+                                @* Once work has left Pending it can never go back, so Pending is
+                                   only offered while it's still the current status. Rescheduled is
+                                   manager-driven only — it's shown solely when it's already current. *@
+                                if (opt == "Pending" && Model.JobTicket.Status != "Pending") { continue; }
+                                if (opt == "Rescheduled" && Model.JobTicket.Status != "Rescheduled") { continue; }
                                 <option value="@opt" selected="@(opt == Model.JobTicket.Status)">@opt</option>
                             }
                         </select>
@@ -148,7 +154,7 @@
                     </div>
                     <div class="col-sm-8">
                         <label class="form-label small">Remarks</label>
-                        <input type="text" name="remarks" class="form-control" maxlength="500"
+                        <input type="text" name="remarks" id="remarksInput" class="form-control" maxlength="500"
                                value="@Model.JobTicket.Remarks" placeholder="Optional notes about this update" />
                     </div>
                 </div>
@@ -162,6 +168,85 @@ else if (!string.IsNullOrWhiteSpace(Model.JobTicket.Remarks))
         <div class="card-body p-4">
             <h6 class="fw-bold mb-2"><i class="bi bi-flag me-1"></i> Remarks</h6>
             <div class="text-muted">@Model.JobTicket.Remarks</div>
+        </div>
+    </div>
+}
+
+@* ===================== RESCHEDULE HISTORY ===================== *@
+@if (Model.JobTicket.RescheduleHistory != null && Model.JobTicket.RescheduleHistory.Any())
+{
+    <div class="card shadow-sm border-0 mb-3 border-warning-subtle">
+        <div class="card-body p-4">
+            <h6 class="fw-bold mb-1 text-warning-emphasis">
+                <i class="bi bi-calendar-event me-1"></i> Reschedule History
+            </h6>
+            <p class="text-muted small mb-3">
+                This job order's date has been changed by the manager. Previous remarks and
+                photos/files from before each reschedule are kept here for reference.
+            </p>
+
+            @foreach (var h in Model.JobTicket.RescheduleHistory)
+            {
+                <div class="border rounded p-3 mb-3 bg-light-subtle">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                        <div>
+                            <div class="fw-semibold">
+                                @h.OldServiceDate.ToString("M/d/yyyy") <i class="bi bi-arrow-right mx-1"></i> @h.NewServiceDate.ToString("M/d/yyyy")
+                            </div>
+                            <div class="text-muted small">Changed @h.DateChanged.ToString("M/d/yyyy h:mm tt")</div>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(h.PreviousStatus))
+                        {
+                            <span class="badge bg-secondary-subtle text-secondary">Was: @h.PreviousStatus</span>
+                        }
+                    </div>
+
+                    <div class="mb-2">
+                        <div class="text-muted small">Reason for Reschedule</div>
+                        <div>@h.Reason</div>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(h.PreviousRemarks))
+                    {
+                        <div class="mb-2">
+                            <div class="text-muted small">Previous Remarks</div>
+                            <div>@h.PreviousRemarks</div>
+                        </div>
+                    }
+
+                    @if (h.ArchivedSubmissions != null && h.ArchivedSubmissions.Any())
+                    {
+                        <div class="text-muted small mb-2">Previous Photos / Files</div>
+                        <div class="row g-2">
+                            @foreach (var sub in h.ArchivedSubmissions.OrderByDescending(s => s.DateSubmitted))
+                            {
+                                var ext = System.IO.Path.GetExtension(sub.FileName);
+                                var isImage = TM_PE.Pages.FieldTechnician.DetailsModel.ImageExtensions.Contains(ext);
+                                <div class="col-md-3 col-sm-4 col-6">
+                                    <div class="card h-100">
+                                        @if (isImage)
+                                        {
+                                            <img src="~/@sub.FilePath" class="card-img-top" style="height:110px; object-fit:cover;" alt="@sub.FileName" />
+                                        }
+                                        else
+                                        {
+                                            <div class="d-flex align-items-center justify-content-center bg-light" style="height:110px;">
+                                                <i class="bi bi-file-earmark-text" style="font-size:2rem;"></i>
+                                            </div>
+                                        }
+                                        <div class="card-body p-2">
+                                            <div class="small text-truncate" title="@sub.FileName">@sub.FileName</div>
+                                            <a asp-page-handler="Download" asp-route-submissionId="@sub.JobTicketSubmissionID" class="btn btn-sm btn-outline-secondary w-100 mt-1">
+                                                <i class="bi bi-download"></i> Download
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
         </div>
     </div>
 }
@@ -186,7 +271,9 @@ else if (!string.IsNullOrWhiteSpace(Model.JobTicket.Remarks))
             {
                 <form method="post" enctype="multipart/form-data" asp-page-handler="UploadSubmission" id="uploadSubmissionForm">
                     <input type="hidden" name="jobTicketId" value="@Model.JobTicket.JobTicketID" />
-                    <input type="hidden" name="status" id="uploadStatus" value="@Model.JobTicket.Status" />
+                    @* Kept in sync with the Remarks textbox above so uploading a file
+                       (a separate form submit) never discards unsaved remarks text. *@
+                    <input type="hidden" name="remarks" id="uploadRemarks" value="@Model.JobTicket.Remarks" />
                     <div class="d-flex align-items-center gap-2">
                         <input type="file" name="submissionFile" id="submissionFileInput" class="form-control" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" />
                         <span id="uploadSpinner" class="spinner-border spinner-border-sm text-primary d-none" role="status" aria-hidden="true"></span>
@@ -264,10 +351,20 @@ else if (!string.IsNullOrWhiteSpace(Model.JobTicket.Remarks))
 
         const statusSelect = document.getElementById("statusSelect");
         const submittedFilesSection = document.getElementById("submittedFilesSection");
-        const uploadStatus = document.getElementById("uploadStatus");
         const submissionFileInput = document.getElementById("submissionFileInput");
         const uploadSubmissionForm = document.getElementById("uploadSubmissionForm");
         const uploadSpinner = document.getElementById("uploadSpinner");
+        const remarksInput = document.getElementById("remarksInput");
+        const uploadRemarks = document.getElementById("uploadRemarks");
+
+        // Keep the upload form's hidden remarks field in sync with whatever the
+        // leader has typed, so uploading a photo/file never discards unsaved
+        // remarks text (the upload is a separate form submit/page reload).
+        if (remarksInput && uploadRemarks) {
+            remarksInput.addEventListener("input", function () {
+                uploadRemarks.value = remarksInput.value;
+            });
+        }
 
         // Choosing a file/photo uploads it immediately — no separate Upload button.
         if (submissionFileInput && uploadSubmissionForm) {
@@ -290,13 +387,7 @@ else if (!string.IsNullOrWhiteSpace(Model.JobTicket.Remarks))
         }
 
         function updateSubmittedFilesVisibility() {
-
             const selectedStatus = statusSelect.value;
-            // Keep upload form synchronized
-            // with the currently selected status.
-            if (uploadStatus) {
-                uploadStatus.value = selectedStatus;
-            }
 
             if (selectedStatus === "Pending") {
                 submittedFilesSection.style.display = "none";

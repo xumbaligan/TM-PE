@@ -21,7 +21,8 @@ namespace TM_PE.Model
     }
 
     // Job ticket lifecycle. "Closed" is a manager-only, terminal state — once a
-    // ticket is Closed it is locked from further edits.
+    // ticket is Closed it is locked from further edits. "Rescheduled" is also
+    // manager-driven: set automatically when the manager edits the service date.
     public static class JobTicketStatuses
     {
         public const string Pending = "Pending";
@@ -29,8 +30,9 @@ namespace TM_PE.Model
         public const string Completed = "Completed";
         public const string Cancelled = "Cancelled";
         public const string Closed = "Closed";
+        public const string Rescheduled = "Rescheduled";
 
-        public static readonly string[] Allowed = { Pending, InProgress, Completed, Cancelled, Closed };
+        public static readonly string[] Allowed = { Pending, InProgress, Completed, Cancelled, Closed, Rescheduled };
     }
 
     [Table("tbl_jobticket")]
@@ -117,5 +119,11 @@ namespace TM_PE.Model
 
         public ICollection<JobTicketSubmission> Submissions { get; set; }
             = new List<JobTicketSubmission>();
+
+        // History of date changes made by the manager. Each entry snapshots what
+        // the ticket looked like (status, remarks) right before that reschedule,
+        // and the submissions that were archived at that point.
+        public ICollection<JobTicketRescheduleHistory> RescheduleHistory { get; set; }
+            = new List<JobTicketRescheduleHistory>();
     }
 }

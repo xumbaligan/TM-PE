@@ -21,6 +21,7 @@ namespace TM_PE.Data
         public DbSet<JobTicket> JobTickets => Set<JobTicket>();
         public DbSet<JobTicketAssignment> JobTicketAssignments => Set<JobTicketAssignment>();
         public DbSet<JobTicketSubmission> JobTicketSubmissions => Set<JobTicketSubmission>();
+        public DbSet<JobTicketRescheduleHistory> JobTicketRescheduleHistories => Set<JobTicketRescheduleHistory>();
 
         protected override void OnModelCreating(ModelBuilder b)
         {
@@ -42,6 +43,15 @@ namespace TM_PE.Data
             b.Entity<Department>()
                 .Property(d => d.CreatedAt)
                 .HasDefaultValueSql("GETUTCDATE()");
+
+            // A submission's optional link to the reschedule entry that archived it
+            // must NOT cascade-delete — it already cascades via JobTicketID, and SQL
+            // Server disallows multiple cascade paths to the same table.
+            b.Entity<JobTicketSubmission>()
+                .HasOne(s => s.RescheduleHistory)
+                .WithMany(h => h.ArchivedSubmissions)
+                .HasForeignKey(s => s.RescheduleHistoryID)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

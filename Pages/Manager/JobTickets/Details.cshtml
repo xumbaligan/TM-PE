@@ -10,8 +10,14 @@
         "Completed" => "bg-success-subtle text-success",
         "In Progress" => "bg-info-subtle text-info",
         "Cancelled" => "bg-danger-subtle text-danger",
+        "Rescheduled" => "bg-warning-subtle text-warning-emphasis",
         _ => "bg-secondary-subtle text-secondary"
     };
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -92,14 +98,42 @@
             <div class="text-muted small mb-2">Assigned Field Technicians</div>
             @if (Model.JobTicket.Assignments != null && Model.JobTicket.Assignments.Any())
             {
-                <div class="d-flex flex-wrap gap-2">
-                    @foreach (var a in Model.JobTicket.Assignments.Where(a => a.Employee != null))
-                    {
-                        <span class="badge rounded-pill @(a.IsLeader ? "bg-primary" : "bg-light text-dark border") px-3 py-2">
-                            @a.Employee!.FullName @(a.IsLeader ? "(Leader)" : "")
-                        </span>
-                    }
-                </div>
+                @if (Model.JobTicket.Status == "Pending")
+                {
+                    <form method="post" asp-page-handler="ChangeLeader" asp-route-id="@Model.JobTicket.JobTicketID" class="d-flex flex-wrap align-items-end gap-2">
+                        <div>
+                            <label class="form-label small text-muted mb-1">Assigned Leader</label>
+                            <select name="leaderEmployeeId" class="form-select form-select-sm">
+                                @foreach (var a in Model.JobTicket.Assignments.Where(a => a.Employee != null))
+                                {
+                                    <option value="@a.EmployeeID" selected="@a.IsLeader">@a.Employee!.FullName</option>
+                                }
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-person-check"></i> Update Leader
+                        </button>
+                    </form>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        @foreach (var a in Model.JobTicket.Assignments.Where(a => a.Employee != null))
+                        {
+                            <span class="badge rounded-pill @(a.IsLeader ? "bg-primary" : "bg-light text-dark border") px-3 py-2">
+                                @a.Employee!.FullName @(a.IsLeader ? "(Leader)" : "")
+                            </span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var a in Model.JobTicket.Assignments.Where(a => a.Employee != null))
+                        {
+                            <span class="badge rounded-pill @(a.IsLeader ? "bg-primary" : "bg-light text-dark border") px-3 py-2">
+                                @a.Employee!.FullName @(a.IsLeader ? "(Leader)" : "")
+                            </span>
+                        }
+                    </div>
+                }
             }
             else
             {
@@ -111,12 +145,34 @@
         {
             <div class="mt-4">
                 <div class="text-muted small mb-1">Remarks (from Field Technician Leader)</div>
-                <div class="border rounded p-2 bg-light">@Model.JobTicket.Remarks</div>
+                <div class="border rounded p-2 bg-warning-subtle border-warning fw-semibold">@Model.JobTicket.Remarks</div>
             </div>
         }
 
     </div>
 </div>
+
+@if (Model.JobTicket.RescheduleHistory != null && Model.JobTicket.RescheduleHistory.Any())
+{
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <h5 class="fw-semibold mb-1"><i class="bi bi-calendar-event"></i> Reschedule History</h5>
+            <p class="text-muted small mb-3">Date changes made to this job order.</p>
+
+            @foreach (var h in Model.JobTicket.RescheduleHistory)
+            {
+                <div class="border rounded p-3 mb-2">
+                    <div class="fw-semibold">
+                        @h.OldServiceDate.ToString("M/d/yyyy") <i class="bi bi-arrow-right mx-1"></i> @h.NewServiceDate.ToString("M/d/yyyy")
+                        <span class="text-muted small ms-2">(@h.DateChanged.ToString("M/d/yyyy h:mm tt"))</span>
+                    </div>
+                    <div class="text-muted small mt-1">Reason</div>
+                    <div>@h.Reason</div>
+                </div>
+            }
+        </div>
+    </div>
+}
 
 <!-- Submitted Photos -->
 <div class="card shadow-sm border-0">

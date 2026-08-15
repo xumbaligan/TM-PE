@@ -87,9 +87,10 @@
 
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" id="serviceDateLabel">Date of Installation <span class="text-danger">*</span></label>
-                    <input asp-for="JobTicket.ServiceDate" type="date"
+                    <input asp-for="JobTicket.ServiceDate" type="date" id="serviceDateInput"
                            value="@Model.JobTicket.ServiceDate.ToString("yyyy-MM-dd")"
                            class="form-control" />
+                    <input type="hidden" id="originalServiceDate" value="@Model.OriginalServiceDate.ToString("yyyy-MM-dd")" />
                     <span asp-validation-for="JobTicket.ServiceDate" class="text-danger"></span>
                 </div>
 
@@ -102,6 +103,21 @@
                 </div> *@
             </div>
 
+            <!-- Reschedule Reason (shown only when the date above is changed) -->
+            <div class="row mb-3 d-none" id="rescheduleReasonRow">
+                <div class="col-12">
+                    <div class="alert alert-warning mb-2">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Changing the date will mark this job order as <strong>Rescheduled</strong> and
+                        the assigned field technician's current remarks and photos/files will be
+                        archived so they can start fresh for the new date.
+                    </div>
+                    <label class="form-label fw-semibold">Reason for Reschedule <span class="text-danger">*</span></label>
+                    <textarea asp-for="RescheduleReason" id="rescheduleReasonInput" class="form-control" rows="2" maxlength="500"></textarea>
+                    <span asp-validation-for="RescheduleReason" class="text-danger"></span>
+                </div>
+            </div>
+
             <!-- Location -->
             <div class="card mb-3">
                 <div class="card-body">
@@ -109,13 +125,13 @@
 
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Address</label>
-                        <input asp-for="JobTicket.LocationAddress" class="form-control" placeholder="Enter the job site address" />
+                        <input asp-for="JobTicket.LocationAddress" id="locationAddressInput" class="form-control" placeholder="Enter the job site address" />
                         <span asp-validation-for="JobTicket.LocationAddress" class="text-danger"></span>
                     </div>
 
                     <div>
                         <label class="form-label fw-semibold">Nearest Landmark</label>
-                        <input asp-for="JobTicket.NearestLandmark" class="form-control" placeholder="e.g. Near the barangay hall" />
+                        <input asp-for="JobTicket.NearestLandmark" id="nearestLandmarkInput" class="form-control" placeholder="e.g. Near the barangay hall" />
                         <span asp-validation-for="JobTicket.NearestLandmark" class="text-danger"></span>
                     </div>
                 </div>
@@ -160,8 +176,14 @@
         await Html.RenderPartialAsync("_ValidationScriptsPartial");
     }
 
+    <script src="~/js/address-autocomplete.js"></script>
     <script>
         (function () {
+            // ---------------- ADDRESS AUTOCOMPLETE ----------------
+            // Biased toward Cebu/Philippines; users can still search anywhere.
+            initAddressAutocomplete(document.getElementById('locationAddressInput'), { lat: 10.3157, lon: 123.8854 });
+            initAddressAutocomplete(document.getElementById('nearestLandmarkInput'), { lat: 10.3157, lon: 123.8854 });
+
             // ---------------- JOB TYPE TOGGLE ----------------
             const jobTypeSelect = document.getElementById('jobTypeSelect');
             const fiberPlanGroup = document.getElementById('fiberPlanGroup');
@@ -225,6 +247,26 @@
 
             jobTypeSelect.addEventListener('change', applyJobType);
             applyJobType();
+
+            // ---------------- RESCHEDULE REASON TOGGLE ----------------
+            const serviceDateInput = document.getElementById('serviceDateInput');
+            const originalServiceDate = document.getElementById('originalServiceDate');
+            const rescheduleReasonRow = document.getElementById('rescheduleReasonRow');
+            const rescheduleReasonInput = document.getElementById('rescheduleReasonInput');
+
+            function applyRescheduleVisibility() {
+                if (serviceDateInput.value !== originalServiceDate.value) {
+                    rescheduleReasonRow.classList.remove('d-none');
+                    rescheduleReasonInput.setAttribute('required', 'required');
+                } else {
+                    rescheduleReasonRow.classList.add('d-none');
+                    rescheduleReasonInput.removeAttribute('required');
+                }
+            }
+
+            serviceDateInput.addEventListener('change', applyRescheduleVisibility);
+            serviceDateInput.addEventListener('input', applyRescheduleVisibility);
+            applyRescheduleVisibility();
         })();
     </script>
 }

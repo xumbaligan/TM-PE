@@ -28,5 +28,14 @@ namespace TM_PE.Model
         public string FilePath { get; set; } = string.Empty;
 
         public DateTime DateSubmitted { get; set; } = DateTime.Now;
+
+        // Null = belongs to the ticket's current cycle (shows in the active
+        // "Submitted Photos / Files" list). Set when a manager reschedules the
+        // ticket's service date, archiving this submission under that history
+        // entry so it shows up as "previous" evidence instead.
+        public int? RescheduleHistoryID { get; set; }
+
+        [ForeignKey(nameof(RescheduleHistoryID))]
+        public JobTicketRescheduleHistory? RescheduleHistory { get; set; }
     }
 }
