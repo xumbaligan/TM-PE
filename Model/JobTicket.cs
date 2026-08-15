@@ -125,5 +125,11 @@ namespace TM_PE.Model
         // and the submissions that were archived at that point.
         public ICollection<JobTicketRescheduleHistory> RescheduleHistory { get; set; }
             = new List<JobTicketRescheduleHistory>();
+
+        // History of Submission — every status/remarks update the field
+        // technician leader has saved for this ticket, in order, along with
+        // whatever photos/files were attached at the time of each save.
+        public ICollection<JobTicketSubmissionHistory> SubmissionHistory { get; set; }
+            = new List<JobTicketSubmissionHistory>();
     }
 }

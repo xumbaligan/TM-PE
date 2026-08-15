@@ -183,91 +183,147 @@ else if (!string.IsNullOrWhiteSpace(Model.JobTicket.Remarks))
     </div>
 }
 
-@* ===================== RESCHEDULE HISTORY ===================== *@
-@if (Model.JobTicket.RescheduleHistory != null && Model.JobTicket.RescheduleHistory.Any())
-{
-    <div class="card shadow-sm border-0 mb-3 border-warning-subtle">
-        <div class="card-body p-4">
-            <h6 class="fw-bold mb-1 text-warning-emphasis">
-                <i class="bi bi-calendar-event me-1"></i> Reschedule History
-            </h6>
-            <p class="text-muted small mb-3">
-                This job order was marked Rescheduled — either by the team leader or by the manager
-                changing the service date. Previous remarks and photos/files from before each
-                reschedule are kept here for reference.
-            </p>
+@* ===================== HISTORY OF SUBMISSION ===================== *@
+@{
+    Func<string, string> historyBadgeClass = s => s switch
+    {
+        "Closed" => "bg-primary-subtle text-primary",
+        "Completed" => "bg-success-subtle text-success",
+        "In Progress" => "bg-info-subtle text-info",
+        "Cancelled" => "bg-danger-subtle text-danger",
+        "Rescheduled" => "bg-warning-subtle text-warning-emphasis",
+        _ => "bg-secondary-subtle text-secondary"
+    };
+}
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body p-4">
+        <h6 class="fw-bold mb-1"><i class="bi bi-clock-history me-1"></i> History of Submission</h6>
+        <p class="text-muted small mb-3">
+            Every status update the team leader has saved for this job order, in order.
+            Click <strong>View</strong> on any row to see the full details for that update,
+            including whatever photos or files were attached at the time.
+        </p>
 
-            @foreach (var h in Model.JobTicket.RescheduleHistory)
-            {
-                <div class="border rounded p-3 mb-3 bg-light-subtle">
-                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+        @if (Model.JobTicket.SubmissionHistory != null && Model.JobTicket.SubmissionHistory.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Remarks</th>
+                            <th>Date Changed</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var h in Model.JobTicket.SubmissionHistory)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="badge rounded-pill @historyBadgeClass(h.Status) px-3 py-1">@h.Status</span>
+                                </td>
+                                <td class="text-truncate" style="max-width:260px;">
+                                    @(string.IsNullOrWhiteSpace(h.Remarks) ? "—" : h.Remarks)
+                                </td>
+                                <td class="text-nowrap">@h.DateChanged.ToString("M/d/yyyy h:mm tt")</td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                            data-bs-toggle="modal" data-bs-target="#historyModal-@h.JobTicketSubmissionHistoryID">
+                                        <i class="bi bi-eye me-1"></i> View
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-muted">No history of submission yet.</div>
+        }
+    </div>
+</div>
+
+@* ===================== HISTORY OF SUBMISSION — VIEW MODALS ===================== *@
+@if (Model.JobTicket.SubmissionHistory != null && Model.JobTicket.SubmissionHistory.Any())
+{
+    @foreach (var h in Model.JobTicket.SubmissionHistory)
+    {
+        <div class="modal fade" id="historyModal-@h.JobTicketSubmissionHistoryID" tabindex="-1"
+             aria-labelledby="historyModalLabel-@h.JobTicketSubmissionHistoryID" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h6 class="modal-title fw-bold mb-0" id="historyModalLabel-@h.JobTicketSubmissionHistoryID">
+                            <i class="bi bi-clock-history me-1"></i> Submission Details
+                        </h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3 mb-3">
+                            <div class="col-sm-6">
+                                <div class="text-muted small">Status</div>
+                                <span class="badge rounded-pill @historyBadgeClass(h.Status) px-3 py-2">@h.Status</span>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small">Date Changed</div>
+                                <div>@h.DateChanged.ToString("M/d/yyyy h:mm tt")</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="text-muted small">Remarks</div>
+                            <div>@(string.IsNullOrWhiteSpace(h.Remarks) ? "—" : h.Remarks)</div>
+                        </div>
+
                         <div>
-                            @if (h.OldServiceDate.Date != h.NewServiceDate.Date)
+                            <div class="text-muted small mb-2">Uploaded Photos / Files</div>
+                            @if (h.ArchivedSubmissions != null && h.ArchivedSubmissions.Any())
                             {
-                                <div class="fw-semibold">
-                                    @h.OldServiceDate.ToString("M/d/yyyy") <i class="bi bi-arrow-right mx-1"></i> @h.NewServiceDate.ToString("M/d/yyyy")
+                                <div class="row g-2">
+                                    @foreach (var sub in h.ArchivedSubmissions.OrderByDescending(s => s.DateSubmitted))
+                                    {
+                                        var ext = System.IO.Path.GetExtension(sub.FileName);
+                                        var isImage = TM_PE.Pages.FieldTechnician.DetailsModel.ImageExtensions.Contains(ext);
+                                        <div class="col-md-3 col-sm-4 col-6">
+                                            <div class="card h-100">
+                                                @if (isImage)
+                                                {
+                                                    <img src="~/@sub.FilePath" class="card-img-top" style="height:110px; object-fit:cover;" alt="@sub.FileName" />
+                                                }
+                                                else
+                                                {
+                                                    <div class="d-flex align-items-center justify-content-center bg-light" style="height:110px;">
+                                                        <i class="bi bi-file-earmark-text" style="font-size:2rem;"></i>
+                                                    </div>
+                                                }
+                                                <div class="card-body p-2">
+                                                    <div class="small text-truncate" title="@sub.FileName">@sub.FileName</div>
+                                                    <div class="text-muted small">By @(sub.Employee?.FullName ?? "—")</div>
+                                                    <a asp-page-handler="Download" asp-route-submissionId="@sub.JobTicketSubmissionID" class="btn btn-sm btn-outline-secondary w-100 mt-1">
+                                                        <i class="bi bi-download"></i> Download
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
                                 </div>
                             }
                             else
                             {
-                                <div class="fw-semibold">Marked Rescheduled — date unchanged (@h.OldServiceDate.ToString("M/d/yyyy"))</div>
-                            }
-                            <div class="text-muted small">Changed @h.DateChanged.ToString("M/d/yyyy h:mm tt")</div>
-                        </div>
-                        @if (!string.IsNullOrWhiteSpace(h.PreviousStatus))
-                        {
-                            <span class="badge bg-secondary-subtle text-secondary">Was: @h.PreviousStatus</span>
-                        }
-                    </div>
-
-                    <div class="mb-2">
-                        <div class="text-muted small">Reason for Reschedule</div>
-                        <div>@h.Reason</div>
-                    </div>
-
-                    @if (!string.IsNullOrWhiteSpace(h.PreviousRemarks))
-                    {
-                        <div class="mb-2">
-                            <div class="text-muted small">Previous Remarks</div>
-                            <div>@h.PreviousRemarks</div>
-                        </div>
-                    }
-
-                    @if (h.ArchivedSubmissions != null && h.ArchivedSubmissions.Any())
-                    {
-                        <div class="text-muted small mb-2">Previous Photos / Files</div>
-                        <div class="row g-2">
-                            @foreach (var sub in h.ArchivedSubmissions.OrderByDescending(s => s.DateSubmitted))
-                            {
-                                var ext = System.IO.Path.GetExtension(sub.FileName);
-                                var isImage = TM_PE.Pages.FieldTechnician.DetailsModel.ImageExtensions.Contains(ext);
-                                <div class="col-md-3 col-sm-4 col-6">
-                                    <div class="card h-100">
-                                        @if (isImage)
-                                        {
-                                            <img src="~/@sub.FilePath" class="card-img-top" style="height:110px; object-fit:cover;" alt="@sub.FileName" />
-                                        }
-                                        else
-                                        {
-                                            <div class="d-flex align-items-center justify-content-center bg-light" style="height:110px;">
-                                                <i class="bi bi-file-earmark-text" style="font-size:2rem;"></i>
-                                            </div>
-                                        }
-                                        <div class="card-body p-2">
-                                            <div class="small text-truncate" title="@sub.FileName">@sub.FileName</div>
-                                            <a asp-page-handler="Download" asp-route-submissionId="@sub.JobTicketSubmissionID" class="btn btn-sm btn-outline-secondary w-100 mt-1">
-                                                <i class="bi bi-download"></i> Download
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
+                                <div class="text-muted small">No photos or files were attached to this update.</div>
                             }
                         </div>
-                    }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
                 </div>
-            }
+            </div>
         </div>
-    </div>
+    }
 }
 
 @* ===================== SUBMITTED PHOTOS / FILES ===================== *@
@@ -292,7 +348,19 @@ else if (!string.IsNullOrWhiteSpace(Model.JobTicket.Remarks))
                     <input type="hidden" name="jobTicketId" value="@Model.JobTicket.JobTicketID" />
                     @* Kept in sync with the Remarks textbox above so uploading a file
                        (a separate form submit) never discards unsaved remarks text. *@
-                    <input type="hidden" name="remarks" id="uploadRemarks" value="@Model.JobTicket.Remarks" />
+                    <input type="hidden"
+                           name="jobTicketId"
+                           value="@Model.JobTicket.JobTicketID" />
+
+                    <input type="hidden"
+                           name="status"
+                           id="uploadStatus"
+                           value="@Model.JobTicket.Status" />
+
+                    <input type="hidden"
+                           name="remarks"
+                           id="uploadRemarks"
+                           value="@Model.JobTicket.Remarks" />
                     <div class="d-flex align-items-center gap-2">
                         <input type="file" name="submissionFile" id="submissionFileInput" class="form-control" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" />
                         <span id="uploadSpinner" class="spinner-border spinner-border-sm text-primary d-none" role="status" aria-hidden="true"></span>
@@ -369,21 +437,27 @@ else if (!string.IsNullOrWhiteSpace(Model.JobTicket.Remarks))
     document.addEventListener("DOMContentLoaded", function () {
 
         const statusSelect = document.getElementById("statusSelect");
+        const remarksInput = document.getElementById("remarksInput");
         const submittedFilesSection = document.getElementById("submittedFilesSection");
         const submissionFileInput = document.getElementById("submissionFileInput");
         const uploadSubmissionForm = document.getElementById("uploadSubmissionForm");
         const uploadSpinner = document.getElementById("uploadSpinner");
-        const remarksInput = document.getElementById("remarksInput");
+        const uploadStatus = document.getElementById("uploadStatus");
         const uploadRemarks = document.getElementById("uploadRemarks");
 
-        // Keep the upload form's hidden remarks field in sync with whatever the
-        // leader has typed, so uploading a photo/file never discards unsaved
-        // remarks text (the upload is a separate form submit/page reload).
-        if (remarksInput && uploadRemarks) {
-            remarksInput.addEventListener("input", function () {
-                uploadRemarks.value = remarksInput.value;
-            });
-        }
+    // Keep the upload form synchronized with the values currently selected
+    // in the Status + Remarks form.
+    if (statusSelect && uploadStatus) {
+        statusSelect.addEventListener("change", function () {
+            uploadStatus.value = statusSelect.value;
+        });
+    }
+
+    if (remarksInput && uploadRemarks) {
+        remarksInput.addEventListener("input", function () {
+            uploadRemarks.value = remarksInput.value;
+        });
+    }
 
         // Choosing a file/photo uploads it immediately — no separate Upload button.
         if (submissionFileInput && uploadSubmissionForm) {

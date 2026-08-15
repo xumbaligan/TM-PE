@@ -65,7 +65,7 @@ namespace TM_PE.Pages.FieldTechnician
             var ticket = await _context.JobTickets
                 .Include(t => t.Assignments).ThenInclude(a => a.Employee)
                 .Include(t => t.Submissions).ThenInclude(s => s.Employee)
-                .Include(t => t.RescheduleHistory).ThenInclude(h => h.ArchivedSubmissions).ThenInclude(s => s.Employee)
+                .Include(t => t.SubmissionHistory).ThenInclude(h => h.ArchivedSubmissions).ThenInclude(s => s.Employee)
                 .FirstOrDefaultAsync(t => t.JobTicketID == id);
 
             if (ticket == null)
@@ -82,14 +82,15 @@ namespace TM_PE.Pages.FieldTechnician
 
             IsLeader = myAssignment.IsLeader;
 
-            // Only the current cycle's submissions belong in the active list; ones
-            // archived under a reschedule history entry show in that section instead.
+            // Only the current, not-yet-saved cycle's submissions belong in the
+            // active list; ones archived under a History of Submission entry (or
+            // an older manager-triggered reschedule) show under that history instead.
             ticket.Submissions = ticket.Submissions
-                .Where(s => s.RescheduleHistoryID == null)
+                .Where(s => s.RescheduleHistoryID == null && s.SubmissionHistoryID == null)
                 .OrderByDescending(s => s.DateSubmitted)
                 .ToList();
 
-            ticket.RescheduleHistory = ticket.RescheduleHistory
+            ticket.SubmissionHistory = ticket.SubmissionHistory
                 .OrderByDescending(h => h.DateChanged)
                 .ToList();
 
@@ -101,12 +102,12 @@ namespace TM_PE.Pages.FieldTechnician
         // ---------------------------------------------------------------
         // FILE SUBMISSION (leader only)
         // ---------------------------------------------------------------
-        // NOTE: this handler only adds a file — it never changes the ticket's
+        // NOTE: this handler only adds a file ? it never changes the ticket's
         // Status or Remarks. Status/remarks changes only ever happen through the
         // explicit "Save" button in OnPostSaveAsync below, so uploading a photo
         // can never silently commit a status change (e.g. auto-completing a
         // ticket) before the leader has actually pressed Save.
-        public async Task<IActionResult> OnPostUploadSubmissionAsync(int jobTicketId, IFormFile submissionFile, string? remarks)
+        public async Task<IActionResult> OnPostUploadSubmissionAsync(int jobTicketId,IFormFile submissionFile,string? status,string? remarks)
         {
             var employeeId = HttpContext.Session.GetInt32("CurrentFieldTechnicianId");
 
@@ -156,8 +157,17 @@ namespace TM_PE.Pages.FieldTechnician
                 return RedirectToPage(new { id = jobTicketId });
             }
 
+            // Preserve the status and remarks currently selected by the leader.
+            // Uploading a file is a separate form submission, so these values
+            // must be explicitly saved before the page reloads.
+
+            if (!string.IsNullOrWhiteSpace(status) &&
+                StatusOptions.Contains(status))
+            {
+                ticket.Status = status;
+            }
             // Persist whatever remarks the leader has already typed in the Update
-            // Status box — the page submits the upload as a separate form, so
+            // Status box ? the page submits the upload as a separate form, so
             // without this the in-progress remarks text would be lost on reload.
             // The hidden field is kept in sync with the remarks textbox by JS, so
             // its value (even if blank) reflects what the leader currently has typed.
@@ -246,7 +256,8 @@ namespace TM_PE.Pages.FieldTechnician
             var submission = await _context.JobTicketSubmissions
                 .FirstOrDefaultAsync(s => s.JobTicketSubmissionID == submissionId
                     && s.JobTicketID == jobTicketId
-                    && s.RescheduleHistoryID == null);
+                    && s.RescheduleHistoryID == null
+                    && s.SubmissionHistoryID == null);
 
             if (submission != null)
             {
@@ -323,16 +334,18 @@ namespace TM_PE.Pages.FieldTechnician
             // Only count the CURRENT cycle's files — ones archived under a
             // reschedule history entry don't count as proof for the new date.
             bool hasUploadedFile = ticket.Submissions != null &&
-                                   ticket.Submissions.Any(s => s.RescheduleHistoryID == null);
+                       ticket.Submissions.Any(s =>
+                           s.RescheduleHistoryID == null &&
+                           s.SubmissionHistoryID == null);
 
             // ============================================================
             // RULE 1:
             // Once the ticket has moved past Pending, it can never go back.
             // ============================================================
-            if (status == JobTicketStatuses.Pending && ticket.Status != JobTicketStatuses.Pending)
+            if (status == JobTicketStatuses.Completed && !hasUploadedFile)
             {
                 ErrorMessage =
-                    "This job order cannot be changed back to Pending — work has already started.";
+                    "You must upload at least one photo or file before changing the job order to Completed.";
 
                 return RedirectToPage(new { id = jobTicketId });
             }
@@ -346,12 +359,18 @@ namespace TM_PE.Pages.FieldTechnician
             // In Progress first and then upload the file, REMOVE this
             // validation for In Progress.
             // ============================================================
-
             if (status == JobTicketStatuses.Completed && !hasUploadedFile)
             {
                 ErrorMessage =
                     "You must upload at least one photo or file before changing the job order to Completed.";
 
+                return RedirectToPage(new { id = jobTicketId });
+            }
+             
+            if(status == JobTicketStatuses.InProgress && string.IsNullOrWhiteSpace(remarks))
+            {
+                ErrorMessage =
+                    "Please provide a reason in the remarks before marking this job order Inprogress.";
                 return RedirectToPage(new { id = jobTicketId });
             }
 
@@ -366,8 +385,7 @@ namespace TM_PE.Pages.FieldTechnician
             // RULE 3:
             // Cancelled requires remarks
             // ============================================================
-            if (status == JobTicketStatuses.Cancelled &&
-                string.IsNullOrWhiteSpace(remarks))
+            if (status == JobTicketStatuses.Cancelled && string.IsNullOrWhiteSpace(remarks))
             {
                 ErrorMessage =
                     "Please provide a reason in the remarks before cancelling this job order.";
@@ -392,13 +410,46 @@ namespace TM_PE.Pages.FieldTechnician
                 return RedirectToPage(new { id = jobTicketId });
             }
 
+            if (isNewReschedule && !hasUploadedFile)
+            {
+                ErrorMessage =
+                    "You must upload at least one photo or file for proof before marking this job order Rescheduled.";
+                return RedirectToPage(new { id = jobTicketId });
+            }
             // ============================================================
             // SAVE STATUS
             // ============================================================
+            var history = new JobTicketSubmissionHistory
+            {
+                JobTicketID = ticket.JobTicketID,
+                Status = status,
+                Remarks = string.IsNullOrWhiteSpace(remarks)
+                    ? null
+                    : remarks.Trim(),
+                DateChanged = DateTime.Now
+            };
+
+            var currentSubmissions = ticket.Submissions
+                .Where(s => s.RescheduleHistoryID == null && s.SubmissionHistoryID == null)
+                .ToList();
+
+            foreach (var sub in currentSubmissions)
+            {
+                history.ArchivedSubmissions.Add(sub);
+                sub.SubmissionHistoryID = null;
+            }
+
+            _context.JobTicketSubmissionHistories.Add(history);
+            await _context.SaveChangesAsync();
+
+            foreach (var sub in currentSubmissions)
+            {
+                sub.SubmissionHistoryID = history.JobTicketSubmissionHistoryID;
+            }
 
             if (isNewReschedule)
             {
-                var history = new JobTicketRescheduleHistory
+                var rescheduleHistory = new JobTicketRescheduleHistory
                 {
                     JobTicketID = ticket.JobTicketID,
                     OldServiceDate = ticket.ServiceDate,
@@ -409,16 +460,23 @@ namespace TM_PE.Pages.FieldTechnician
                     DateChanged = DateTime.Now
                 };
 
-                var currentSubmissions = ticket.Submissions
-                    .Where(s => s.RescheduleHistoryID == null)
+                var currentSubmissionsBeforeReschedule = ticket.Submissions
+                    .Where(s => s.RescheduleHistoryID == null && s.SubmissionHistoryID == null)
                     .ToList();
 
-                foreach (var sub in currentSubmissions)
+                foreach (var sub in currentSubmissionsBeforeReschedule)
                 {
-                    history.ArchivedSubmissions.Add(sub);
+                    rescheduleHistory.ArchivedSubmissions.Add(sub);
+                    sub.RescheduleHistoryID = null;
                 }
 
-                _context.JobTicketRescheduleHistories.Add(history);
+                _context.JobTicketRescheduleHistories.Add(rescheduleHistory);
+                await _context.SaveChangesAsync();
+
+                foreach (var sub in currentSubmissionsBeforeReschedule)
+                {
+                    sub.RescheduleHistoryID = rescheduleHistory.JobTicketRescheduleHistoryID;
+                }
 
                 ticket.Status = JobTicketStatuses.Rescheduled;
                 ticket.Remarks = null;
@@ -454,5 +512,6 @@ namespace TM_PE.Pages.FieldTechnician
             var bytes = await System.IO.File.ReadAllBytesAsync(fullPath);
             return File(bytes, "application/octet-stream", submission.FileName);
         }
+
     }
 }

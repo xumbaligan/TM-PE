@@ -22,6 +22,7 @@ namespace TM_PE.Data
         public DbSet<JobTicketAssignment> JobTicketAssignments => Set<JobTicketAssignment>();
         public DbSet<JobTicketSubmission> JobTicketSubmissions => Set<JobTicketSubmission>();
         public DbSet<JobTicketRescheduleHistory> JobTicketRescheduleHistories => Set<JobTicketRescheduleHistory>();
+        public DbSet<JobTicketSubmissionHistory> JobTicketSubmissionHistories => Set<JobTicketSubmissionHistory>();
 
         protected override void OnModelCreating(ModelBuilder b)
         {
@@ -51,6 +52,15 @@ namespace TM_PE.Data
                 .HasOne(s => s.RescheduleHistory)
                 .WithMany(h => h.ArchivedSubmissions)
                 .HasForeignKey(s => s.RescheduleHistoryID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Same reasoning as RescheduleHistory above: a submission's optional
+            // link to the "History of Submission" entry that archived it must NOT
+            // cascade-delete, since it already cascades via JobTicketID.
+            b.Entity<JobTicketSubmission>()
+                .HasOne(s => s.SubmissionHistory)
+                .WithMany(h => h.ArchivedSubmissions)
+                .HasForeignKey(s => s.SubmissionHistoryID)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

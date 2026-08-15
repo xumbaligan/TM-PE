@@ -37,5 +37,14 @@ namespace TM_PE.Model
 
         [ForeignKey(nameof(RescheduleHistoryID))]
         public JobTicketRescheduleHistory? RescheduleHistory { get; set; }
+
+        // Null = belongs to the ticket's current, not-yet-saved cycle (shows in
+        // the active "Submitted Photos / Files" list). Set when the field
+        // technician leader saves a status/remarks update, archiving this
+        // submission under that "History of Submission" entry instead.
+        public int? SubmissionHistoryID { get; set; }
+
+        [ForeignKey(nameof(SubmissionHistoryID))]
+        public JobTicketSubmissionHistory? SubmissionHistory { get; set; }
     }
 }
