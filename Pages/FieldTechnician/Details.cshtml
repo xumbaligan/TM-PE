@@ -138,11 +138,22 @@
                             @foreach (var opt in TM_PE.Pages.FieldTechnician.DetailsModel.StatusOptions)
                             {
                                 @* Once work has left Pending it can never go back, so Pending is
-                                   only offered while it's still the current status. Rescheduled is
-                                   manager-driven only — it's shown solely when it's already current. *@
-                                if (opt == "Pending" && Model.JobTicket.Status != "Pending") { continue; }
-                                if (opt == "Rescheduled" && Model.JobTicket.Status != "Rescheduled") { continue; }
-                                <option value="@opt" selected="@(opt == Model.JobTicket.Status)">@opt</option>
+                                   only offered while it's still the current status. Rescheduled can
+                                   be selected by the team leader at any time (in addition to being
+                                   set automatically when a manager edits the service date). *@
+                                if (opt == "Pending" && Model.JobTicket.Status != "Pending")
+                                {
+                                    continue;
+                                }
+
+                                if (opt == Model.JobTicket.Status)
+                                {
+                                    <option value="@opt" selected>@opt</option>
+                                }
+                                else
+                                {
+                                    <option value="@opt">@opt</option>
+                                }
                             }
                         </select>
                         <div id="fileRequirementWarning"
@@ -181,8 +192,9 @@ else if (!string.IsNullOrWhiteSpace(Model.JobTicket.Remarks))
                 <i class="bi bi-calendar-event me-1"></i> Reschedule History
             </h6>
             <p class="text-muted small mb-3">
-                This job order's date has been changed by the manager. Previous remarks and
-                photos/files from before each reschedule are kept here for reference.
+                This job order was marked Rescheduled — either by the team leader or by the manager
+                changing the service date. Previous remarks and photos/files from before each
+                reschedule are kept here for reference.
             </p>
 
             @foreach (var h in Model.JobTicket.RescheduleHistory)
@@ -190,9 +202,16 @@ else if (!string.IsNullOrWhiteSpace(Model.JobTicket.Remarks))
                 <div class="border rounded p-3 mb-3 bg-light-subtle">
                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                         <div>
-                            <div class="fw-semibold">
-                                @h.OldServiceDate.ToString("M/d/yyyy") <i class="bi bi-arrow-right mx-1"></i> @h.NewServiceDate.ToString("M/d/yyyy")
-                            </div>
+                            @if (h.OldServiceDate.Date != h.NewServiceDate.Date)
+                            {
+                                <div class="fw-semibold">
+                                    @h.OldServiceDate.ToString("M/d/yyyy") <i class="bi bi-arrow-right mx-1"></i> @h.NewServiceDate.ToString("M/d/yyyy")
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="fw-semibold">Marked Rescheduled — date unchanged (@h.OldServiceDate.ToString("M/d/yyyy"))</div>
+                            }
                             <div class="text-muted small">Changed @h.DateChanged.ToString("M/d/yyyy h:mm tt")</div>
                         </div>
                         @if (!string.IsNullOrWhiteSpace(h.PreviousStatus))
